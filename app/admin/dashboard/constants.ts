@@ -1,4 +1,6 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:9999";
+import { requireApiUrl } from "@/lib/api-url";
+
+export const API_URL = requireApiUrl();
 
 export const CHART_COLORS = [
   "hsl(210, 70%, 55%)",
