@@ -1,4 +1,4 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "[localhost](http://localhost:9999)";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:9999";
 
 export const CHART_COLORS = [
   "hsl(210, 70%, 55%)",

@@ -1,7 +1,7 @@
 import { apiPost } from "./api";
+import { requireApiUrl } from "@/lib/api-url";
 
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const API_URL = requireApiUrl();
 
 export function setAuthToken(token: string) {
   document.cookie = `accessToken=${token}; path=/`;
@@ -13,7 +13,7 @@ export function removeAuthToken() {
 }
 
 export async function login(data: any) {
-  const res = await fetch("http://localhost:9999/auth/login", {
+  const res = await fetch(`${API_URL}/auth/login`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -46,7 +46,7 @@ export function register(payload: {
 
 export async function getMe(token: string) {
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/auth/me`,
+    `${API_URL}/auth/me`,
     {
       credentials: "include",
     }

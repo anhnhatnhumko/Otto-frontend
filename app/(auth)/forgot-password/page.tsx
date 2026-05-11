@@ -6,6 +6,9 @@ import { useRouter } from "next/navigation";
 import { Mail, CheckCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@radix-ui/react-label";
+import { requireApiUrl } from "@/lib/api-url";
+
+const API_URL = requireApiUrl();
 
 export default function ForgotPassword() {
   const router = useRouter();
@@ -22,7 +25,7 @@ export default function ForgotPassword() {
     setIsLoading(true);
     
     try {
-      const response = await fetch("/api/auth/forgot-password", {
+      const response = await fetch(`${API_URL}/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
