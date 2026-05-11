@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Edit3, Loader2, Mail, Phone, User } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { requireApiUrl } from "@/lib/api-url";
 import {
   Select,
   SelectContent,
@@ -15,6 +16,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+
+const API_URL = requireApiUrl();
 
 interface TaskerProfileTabProps {
   isEditing: boolean;
@@ -83,8 +86,6 @@ const TaskerProfileTab = ({
     phone: "",
     idCard: "",
   });
-
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
   // Helper: Extract ID từ province/ward (có thể là object hoặc string)
   const getId = (item: any): string => {

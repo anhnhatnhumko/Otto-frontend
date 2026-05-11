@@ -76,6 +76,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import WalletCard from "@/components/wallet/WalletCard";
 import { useUserStore } from "@/app/store/useUserStore";
 import { handleAuthMeResponse } from "@/lib/auth-client";
+import { requireApiUrl } from "@/lib/api-url";
 import {
   fetchProfileStats,
   fetchUpcomingBookings,
@@ -85,6 +86,8 @@ import {
   fetchCustomerProfile,
 } from "@/lib/api/profile.api";
 import { mapOrder } from "@/lib/mappers/order.mapper";
+
+const API_URL = requireApiUrl();
 
 type MeUser = {
   _id: string;
@@ -174,7 +177,7 @@ const CustomerDashboard = () => {
   const isMobile = useIsMobile();
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
+    fetch(`${API_URL}/auth/me`, {
       credentials: "include",
     })
       .then((res) => handleAuthMeResponse(res, router))
@@ -396,7 +399,7 @@ const CustomerDashboard = () => {
       formData.append("file", file);
 
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/users/avatar`,
+        `${API_URL}/users/avatar`,
         {
           method: "PATCH",
           body: formData,
@@ -1242,7 +1245,7 @@ const CustomerDashboard = () => {
 
                           try {
                             const res = await fetch(
-                              `${process.env.NEXT_PUBLIC_API_URL}/customers/profile`,
+                              `${API_URL}/customers/profile`,
                               {
                                 method: "PATCH",
                                 headers: {

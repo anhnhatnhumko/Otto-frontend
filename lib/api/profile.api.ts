@@ -1,4 +1,6 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL!;
+import { requireApiUrl } from "@/lib/api-url";
+
+const API_URL = requireApiUrl();
 
 /**
  * Fetch customer profile stats: total orders, total spent, avg rating, loyalty points, member level

@@ -22,8 +22,9 @@ import {
 import { TaskerStatusBadge } from "../shared/StatusBadges";
 import { formatCurrency } from "@/app/admin/dashboard/utils";
 import type { Tasker } from "@/app/admin/dashboard/types";
+import { requireApiUrl } from "@/lib/api-url";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:9999";
+const API_URL = requireApiUrl();
 
 type Province = {
   _id: string;
@@ -47,6 +48,12 @@ export function TaskerDetailDialog({ open, onOpenChange, tasker }: TaskerDetailD
 
   useEffect(() => {
     if (!open || !tasker) return;
+
+    if (!API_URL) {
+      setProvinceName("");
+      setWardName("");
+      return;
+    }
 
     let isMounted = true;
 

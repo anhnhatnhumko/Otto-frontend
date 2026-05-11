@@ -1,4 +1,5 @@
 import { io, Socket } from "socket.io-client";
+import { requireApiUrl } from "@/lib/api-url";
 
 let socket: Socket | null = null;
 let socketIdentityKey: string | null = null;
@@ -11,10 +12,7 @@ export const connectSocket = (
   role: string,
   token?: string,
 ) => {
-  const URL = process.env.NEXT_PUBLIC_API_URL;
-  if (!URL) {
-    throw new Error("NEXT_PUBLIC_API_URL is required for websocket connection");
-  }
+  const URL = requireApiUrl();
 
   const nextIdentityKey = buildIdentityKey(userId, role);
   if (
