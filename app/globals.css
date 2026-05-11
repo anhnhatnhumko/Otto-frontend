@@ -1,0 +1,243 @@
+@import url("https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700;800&display=swap");
+
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+
+/* =========================
+   BASE THEME (OTTO)
+========================= */
+@layer base {
+  :root {
+    /* ===== Core ===== */
+    --background: 210 40% 98%;
+    --foreground: 215 25% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 25% 12%;
+
+    --border: 210 20% 88%;
+    --input: 210 20% 88%;
+    --ring: 210 70% 55%;
+
+    --radius: 0.75rem;
+
+    /* ===== Primary (OTTO Blue) ===== */
+    --primary: 210 70% 55%;
+    --primary-foreground: 0 0% 100%;
+    --otto-primary-light: 210 70% 95%;
+
+    /* ===== Secondary / Muted ===== */
+    --secondary: 210 25% 94%;
+    --secondary-foreground: 215 25% 15%;
+
+    --muted: 210 20% 94%;
+    --muted-foreground: 215 15% 45%;
+
+    /* ===== Accent (OTTO Pink) ===== */
+    --accent: 340 65% 55%;
+    --accent-foreground: 0 0% 100%;
+    --otto-accent-light: 340 60% 95%;
+
+    /* ===== Destructive ===== */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* ===== Otto Brand ===== */
+    --otto-cream: 210 30% 97%;
+    --otto-warm-gray: 215 15% 45%;
+
+    /* ===== Gradients ===== */
+    --gradient-hero: linear-gradient(
+      135deg,
+      hsl(var(--primary)) 0%,
+      hsl(200 65% 50%) 100%
+    );
+
+    --gradient-accent: linear-gradient(
+      135deg,
+      hsl(var(--accent)) 0%,
+      hsl(340 65% 65%) 100%
+    );
+
+    /* ===== Shadows ===== */
+    --shadow-card: 0 4px 20px -4px hsl(var(--primary) / 0.15);
+    --shadow-card-hover: 0 8px 30px -4px hsl(var(--primary) / 0.25);
+
+    /* ===== Sidebar (shadcn compatible) ===== */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 210 70% 55%;
+  }
+
+  /* =========================
+     DARK MODE
+  ========================= */
+  .dark {
+    --background: 215 20% 8%;
+    --foreground: 210 20% 95%;
+
+    --card: 215 20% 11%;
+    --card-foreground: 210 20% 95%;
+
+    --popover: 215 20% 11%;
+    --popover-foreground: 210 20% 95%;
+
+    --border: 215 20% 18%;
+    --input: 215 20% 18%;
+    --ring: 210 70% 58%;
+
+    --primary: 210 70% 58%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 215 20% 16%;
+    --secondary-foreground: 210 20% 90%;
+
+    --muted: 215 20% 16%;
+    --muted-foreground: 210 15% 60%;
+
+    --accent: 340 65% 55%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 210 70% 58%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 210 70% 58%;
+  }
+}
+
+/* =========================
+   BASE ELEMENTS
+========================= */
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: "Be Vietnam Pro", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-weight: 600;
+    letter-spacing: -0.025em;
+  }
+}
+
+/* =========================
+   UTILITIES
+========================= */
+@layer utilities {
+  .text-gradient {
+    background-image: var(--gradient-hero);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .bg-gradient-hero {
+    background-image: var(--gradient-hero);
+  }
+
+  .bg-gradient-accent {
+    background-image: var(--gradient-accent);
+  }
+
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+
+  .shadow-card-hover {
+    box-shadow: var(--shadow-card-hover);
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .animate-fade-up {
+    animation: fadeUp 0.6s ease-out forwards;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.3s ease-out forwards;
+  }
+}
+
+/* =========================
+   KEYFRAMES
+========================= */
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* =========================
+   INPUT FIXES
+========================= */
+/* Edge / IE */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}
+
+/* Chrome / Safari */
+input[type="password"]::-webkit-credentials-auto-fill-button,
+input[type="password"]::-webkit-textfield-decoration-container {
+  display: none !important;
+}
+
+html {
+  scroll-behavior: smooth;
+}

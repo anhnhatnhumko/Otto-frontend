@@ -1,0 +1,91 @@
+import { io, Socket } from "socket.io-client";
+
+let socket: Socket | null = null;
+let socketIdentityKey: string | null = null;
+
+const buildIdentityKey = (userId?: string, role?: string) =>
+  `${userId ?? "anonymous"}:${role ?? "guest"}`;
+
+export const connectSocket = (
+  userId: string,
+  role: string,
+  token?: string,
+) => {
+  const URL = process.env.NEXT_PUBLIC_API_URL;
+  if (!URL) {
+    throw new Error("NEXT_PUBLIC_API_URL is required for websocket connection");
+  }
+
+  const nextIdentityKey = buildIdentityKey(userId, role);
+  if (
+    socket &&
+    (socket.connected || socket.active) &&
+    socketIdentityKey === nextIdentityKey
+  ) {
+    return socket;
+  }
+
+  if (socket) {
+    socket.removeAllListeners();
+    socket.disconnect();
+    socket = null;
+  }
+
+  // Lấy token từ cookie nếu không được truyền vào
+  const actualToken = token || 
+    (typeof document !== 'undefined' 
+      ? document.cookie.split('; ').find(c => c.startsWith('accessToken='))?.split('=')[1] 
+      : undefined);
+
+  socket = io(URL, {
+    withCredentials: true,
+    transports: ["websocket"],
+    auth: {
+      userId,
+      role,
+      ...(actualToken ? { token: actualToken } : {}),
+    },
+    query: {
+      userId,
+      role,
+      ...(actualToken ? { token: actualToken } : {}),
+    },
+  });
+
+  socketIdentityKey = nextIdentityKey;
+
+  socket.on("connect", () => {
+    if (process.env.NODE_ENV === "development") {
+      console.log("🟢 SOCKET CONNECTED:", socket?.id);
+    }
+  });
+
+  socket.on("disconnect", () => {
+    if (process.env.NODE_ENV === "development") {
+      console.log("🔴 SOCKET DISCONNECTED");
+    }
+  });
+
+  socket.on("connect_error", (err) => {
+    if (process.env.NODE_ENV === "development") {
+      console.log("❌ SOCKET ERROR:", err.message);
+    }
+  });
+
+  return socket;
+};
+
+
+// optional
+export const getSocket = () => socket;
+
+export const isSocketConnected = () => Boolean(socket?.connected);
+
+export const disconnectSocket = () => {
+  if (socket) {
+    socket.removeAllListeners();
+    socket.disconnect();
+    socket = null;
+    socketIdentityKey = null;
+  }
+};
