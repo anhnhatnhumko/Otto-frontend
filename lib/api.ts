@@ -1,4 +1,6 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL!;
+import { requireApiUrl } from "@/lib/api-url";
+
+const API_URL = requireApiUrl();
 
 export async function apiPost<T>(
   path: string,
