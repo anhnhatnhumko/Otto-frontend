@@ -1,5 +1,9 @@
+import { requireApiUrl } from "@/lib/api-url";
+
+const API_URL = requireApiUrl();
+
 export async function fetchNotifications(limit = 20) {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/notifications?limit=${limit}`, {
+  const res = await fetch(`${API_URL}/notifications?limit=${limit}`, {
     credentials: 'include',
     cache: 'no-store',
   });
@@ -12,7 +16,7 @@ export async function fetchNotifications(limit = 20) {
 }
 
 export async function markNotificationRead(id: string) {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/notifications/${id}/read`, {
+  const res = await fetch(`${API_URL}/notifications/${id}/read`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -26,7 +30,7 @@ export async function markNotificationRead(id: string) {
 }
 
 export async function markAllNotificationsRead() {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/notifications/read-all`, {
+  const res = await fetch(`${API_URL}/notifications/read-all`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },

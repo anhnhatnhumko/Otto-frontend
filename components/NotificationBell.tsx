@@ -10,6 +10,9 @@ import {
 import { usePathname, useRouter } from "next/navigation";
 import { connectSocket } from "@/lib/socket";
 import { useToast } from "@/hooks/use-toast";
+import { requireApiUrl } from "@/lib/api-url";
+
+const API_URL = requireApiUrl();
 
 type Notification = {
   _id: string;
@@ -48,7 +51,7 @@ export default function NotificationBell() {
 
     const bootstrapRealtime = async () => {
       try {
-        const meRes = await fetch("/api/auth/me", {
+        const meRes = await fetch(`${API_URL}/auth/me`, {
           credentials: "include",
           cache: "no-store",
         });
