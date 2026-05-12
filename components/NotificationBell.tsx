@@ -48,6 +48,7 @@ export default function NotificationBell() {
   useEffect(() => {
     mounted.current = true;
     load();
+    let handleNewNotification: ((notification: Notification) => void) | null = null;
 
     const bootstrapRealtime = async () => {
       try {
@@ -67,7 +68,7 @@ export default function NotificationBell() {
         const socket = connectSocket(userId, role);
         socketRef.current = socket;
 
-        const handleNewNotification = (notification: Notification) => {
+        handleNewNotification = (notification: Notification) => {
           setItems((prev) => {
             const exists = prev.some((item) => item._id === notification._id);
             if (exists) return prev;
@@ -81,7 +82,7 @@ export default function NotificationBell() {
           });
         };
 
-        socket.off("notification:new");
+        socket.off("notification:new", handleNewNotification);
         socket.on("notification:new", handleNewNotification);
       } catch (error) {
         console.warn("Failed to bootstrap realtime notifications", error);
@@ -92,7 +93,9 @@ export default function NotificationBell() {
 
     return () => {
       mounted.current = false;
-      socketRef.current?.off("notification:new");
+      if (handleNewNotification) {
+        socketRef.current?.off("notification:new", handleNewNotification);
+      }
     };
   }, [toast]);
 
