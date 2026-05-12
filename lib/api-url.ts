@@ -18,6 +18,8 @@ export const requireApiUrl = () => {
     throw new Error("NEXT_PUBLIC_API_URL is not configured");
   }
 
+  const isProduction = process.env.NODE_ENV === "production";
+
   const candidates = splitUrlCandidates(rawApiUrl);
 
   for (const candidate of candidates) {
@@ -26,6 +28,12 @@ export const requireApiUrl = () => {
     if (/^https?:\/\//i.test(normalizedCandidate) && !isLocalUrl(normalizedCandidate)) {
       return normalizedCandidate;
     }
+  }
+
+  if (isProduction) {
+    throw new Error(
+      "NEXT_PUBLIC_API_URL must point to the deployed backend in production, not localhost",
+    );
   }
 
   for (const candidate of candidates) {

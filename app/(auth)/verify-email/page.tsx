@@ -42,7 +42,16 @@ function VerifyEmailPageContent() {
         body: JSON.stringify({ email: email.trim() }),
       });
 
-      const data = await res.json();
+      const rawBody = await res.text();
+      let data: any = null;
+
+      if (rawBody) {
+        try {
+          data = JSON.parse(rawBody);
+        } catch {
+          data = { message: rawBody };
+        }
+      }
 
       if (!res.ok) {
         setMessage(data?.message || "Không thể gửi lại email xác thực.");
