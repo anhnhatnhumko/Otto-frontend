@@ -21,7 +21,9 @@ import ChatDialog, { ChatMessage } from "@/components/dialogs/ChatDialog";
 import { fetchOrderMessages } from "@/lib/api/chat";
 import { connectSocket } from "@/lib/socket";
 import { handleAuthMeResponse } from "@/lib/auth-client";
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+import { requireApiUrl } from "@/lib/api-url";
+
+const API_URL = requireApiUrl();
 
 const acceptOrder = async (jobId: string) => {
   const res = await fetch(`${API_URL}/orders/${jobId}/accept`, {
@@ -74,20 +76,25 @@ const TaskerDashboardContent = () => {
   const [pendingChatOrderId, setPendingChatOrderId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
-      credentials: "include",
-    })
-      .then((res) => handleAuthMeResponse(res, router))
-      .then((data) => {
+    const fetchUser = async () => {
+      try {
+        const res = await fetch(`${API_URL}/auth/me`, {
+          credentials: "include",
+        });
+
+        const data = await handleAuthMeResponse(res, router);
+
         setMe(data);
-      })
-      .catch(() => {
+        setUserId(data._id);
+      } catch {
         router.push("/login");
-      })
-      .finally(() => {
+      } finally {
         setLoadingMe(false);
-      });
-  }, []);
+      }
+    };
+
+    fetchUser();
+  }, [router]);
 
   // =========================
   // 🟢 STATE HELPERS
@@ -108,30 +115,6 @@ const TaskerDashboardContent = () => {
   const removeJob = (jobId: string) => {
     setJobs((prev) => prev.filter((j) => j.id !== jobId));
   };
-
-  // =========================
-  // 🟡 FETCH USER (QUAN TRỌNG)
-  // =========================
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
-          credentials: "include",
-        });
-
-        const data = await handleAuthMeResponse(res, router);
-
-        console.log("USER DATA:", data);
-        console.log("USER ID:", data._id);
-
-        setUserId(data._id);
-      } catch (err) {
-        console.error("Không lấy được user");
-      }
-    };
-
-    fetchUser();
-  }, []);
 
   useEffect(() => {
     const fetchWallet = async () => {
@@ -291,25 +274,6 @@ const TaskerDashboardContent = () => {
   console.log("IN_PROGRESS:", inProgressJobs);
   console.log("COMPLETED:", completedJobs);
   console.log("TIMEOUT:", timeoutJobs);
-
-  // 🔄 Gọi auto-timeout mỗi 30s
-  useEffect(() => {
-    const triggerAutoTimeout = async () => {
-      try {
-        await fetch(`${API_URL}/orders/auto-timeout`, {
-          method: "POST",
-          credentials: "include",
-        });
-      } catch (err) {
-        console.error("Auto-timeout error:", err);
-      }
-    };
-
-    triggerAutoTimeout();
-    const interval = setInterval(triggerAutoTimeout, 30000); // 30s
-
-    return () => clearInterval(interval);
-  }, []);
 
   // =========================
   // 🎯 HANDLERS

@@ -7,7 +7,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { login } from "@/lib/auth";
-import { io } from "socket.io-client";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -27,15 +26,6 @@ export default function LoginPage() {
       const res = await login({ email, password });
 
       console.log("LOGIN OK:", res);
-
-      // ❗ verify cookie usable
-      const meRes = await fetch("/api/auth/me", {
-        credentials: "include",
-      });
-
-      if (!meRes.ok) {
-        throw new Error("Auth chưa sẵn sàng");
-      }
 
       const role = res.user?.role;
       const mustChangePassword = Boolean(res.user?.mustChangePassword);

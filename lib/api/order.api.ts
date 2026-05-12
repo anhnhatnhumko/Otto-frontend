@@ -1,4 +1,6 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL!;
+import { requireApiUrl } from "@/lib/api-url";
+
+const API_URL = requireApiUrl();
 export const getAvailableOrders = async () => {
     const res = await fetch(`${API_URL}/orders/available`, {
         credentials: "include", // vì bạn dùng cookie JWT

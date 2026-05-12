@@ -17,6 +17,9 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
+import { requireApiUrl } from "@/lib/api-url";
+
+const API_URL = requireApiUrl();
 
 export interface WalletTransaction {
   _id: string;
@@ -87,9 +90,13 @@ const WalletCard = ({ compact = false }: WalletCardProps) => {
   };
   useEffect(() => {
     const fetchWallet = async () => {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/wallet`, {
+      const res = await fetch(`${API_URL}/wallet`, {
         credentials: "include",
       });
+
+      if (!res.ok) {
+        return;
+      }
 
       const data = await res.json();
 
@@ -102,11 +109,15 @@ const WalletCard = ({ compact = false }: WalletCardProps) => {
   useEffect(() => {
     const fetchTransactions = async () => {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/wallet/transactions`,
+        `${API_URL}/wallet/transactions`,
         {
           credentials: "include",
         },
       );
+
+      if (!res.ok) {
+        return;
+      }
 
       const data = await res.json();
 

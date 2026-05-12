@@ -1,8 +1,6 @@
 import { apiPost } from "./api";
 import { requireApiUrl } from "@/lib/api-url";
 
-const API_URL = requireApiUrl();
-
 export function setAuthToken(token: string) {
   document.cookie = `accessToken=${token}; path=/`;
 }
@@ -13,6 +11,8 @@ export function removeAuthToken() {
 }
 
 export async function login(data: any) {
+  const API_URL = requireApiUrl();
+
   const res = await fetch(`${API_URL}/auth/login`, {
     method: "POST",
     headers: {
@@ -45,6 +45,8 @@ export function register(payload: {
 }
 
 export async function getMe(token: string) {
+  const API_URL = requireApiUrl();
+
   const res = await fetch(
     `${API_URL}/auth/me`,
     {
