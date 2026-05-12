@@ -27,6 +27,7 @@ const PaymentSuccessContent = () => {
   const params = useSearchParams();
   const orderId = params.get("orderId");
   const source = params.get("source");
+  const sessionId = params.get("session_id");
   const amount = Number(params.get("amount") || 0);
   const isWalletPayment = source === "wallet";
 
@@ -120,6 +121,30 @@ const PaymentSuccessContent = () => {
         console.warn("Fetch order warning:", err);
       }
     };
+
+    // If Stripe redirected with a session_id, call backend confirm endpoint.
+    // This is idempotent and complements webhook processing when webhook isn't configured.
+    if (sessionId) {
+      (async () => {
+        try {
+          const confirmRes = await fetch(`${API_URL}/payments/stripe/success?session_id=${encodeURIComponent(
+            sessionId,
+          )}`, {
+            credentials: 'include',
+          });
+
+          if (!confirmRes.ok) {
+            const text = await confirmRes.text().catch(() => '');
+            console.warn('Stripe confirm failed', confirmRes.status, text);
+          } else {
+            // confirmed on backend — we'll let the normal polling pick up updated order
+            console.log('Stripe session confirmed via frontend callback');
+          }
+        } catch (err) {
+          console.warn('Error confirming stripe session', err);
+        }
+      })();
+    }
 
     fetchOrder();
 
