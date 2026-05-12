@@ -6,6 +6,7 @@ import { useRef } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
+import { requireApiUrl } from "@/lib/api-url";
 import {
   Wallet,
   Shield,
@@ -16,7 +17,7 @@ import {
 } from "lucide-react";
 
 const WALLET_BALANCE = 950000;
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const API_URL = requireApiUrl();
 
 type WalletVerifyOrder = {
   serviceSnapshot?: {

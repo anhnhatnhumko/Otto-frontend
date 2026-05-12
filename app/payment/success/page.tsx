@@ -7,8 +7,9 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2 } from "lucide-react";
+import { requireApiUrl } from "@/lib/api-url";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const API_URL = requireApiUrl();
 const CONFIRMED_STATUSES = new Set(["PAID", "SEARCHING"]);
 const REDIRECT_SECONDS = 8;
 
