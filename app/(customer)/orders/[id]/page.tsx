@@ -8,6 +8,7 @@ import OrderStateRenderer from "@/components/orders/OrderStateRenderer";
 import ChatDialog from "@/components/dialogs/ChatDialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ArrowLeft, Activity, RefreshCw } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 import { useAuth } from "@/hooks/useAuth";
 import { mapOrder } from "@/lib/mappers/order.mapper";
@@ -90,6 +91,7 @@ const toTrackingOrder = (data: Record<string, unknown>) => {
 };
 
 function OrderTrackingPageContent() {
+  const { toast } = useToast();
   const router = useRouter();
   const pathname = usePathname();
   const params = useParams();
@@ -106,6 +108,83 @@ function OrderTrackingPageContent() {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [chatPeerName, setChatPeerName] = useState<string>("");
+  const [cancelMessage, setCancelMessage] = useState<string | null>(null);
+
+  const extractErrorMessage = (data: any, fallback: string) => {
+    const message = data?.message;
+    if (Array.isArray(message)) {
+      return String(message[0] ?? fallback);
+    }
+    if (typeof message === "string" && message.trim()) {
+      return message;
+    }
+    if (typeof data?.error === "string" && data.error.trim()) {
+      return data.error;
+    }
+    return fallback;
+  };
+
+  const canCancelOrder = (currentOrder: ReturnType<typeof toTrackingOrder>) => {
+    const normalizedStatus = String(currentOrder.status || "").toUpperCase();
+    if (normalizedStatus !== "SEARCHING" && normalizedStatus !== "ASSIGNED") {
+      return false;
+    }
+
+    const start = new Date(currentOrder.startTime);
+    if (Number.isNaN(start.getTime())) {
+      return true;
+    }
+
+    return start.getTime() - Date.now() > 60 * 60 * 1000;
+  };
+
+  const handleCancelBooking = async () => {
+    if (!order) return;
+    setCancelMessage(null);
+
+    if (!canCancelOrder(order)) {
+      const message = "Đơn hàng chỉ được hủy trước giờ bắt đầu ít nhất 1 tiếng.";
+      setCancelMessage(message);
+      toast({
+        title: "Không thể hủy đơn",
+        description: message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/orders/${order._id}/cancel`, {
+        method: "PATCH",
+        credentials: "include",
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        const message = extractErrorMessage(data, "Không thể hủy đơn hàng lúc này.");
+        setCancelMessage(message);
+        throw new Error(message);
+      }
+
+      setCancelMessage(null);
+      toast({
+        title: "Đã hủy đơn hàng",
+        description: data?.message || "Đơn hàng đã được hủy thành công",
+        variant: "destructive",
+      });
+
+      await fetchOrder(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Đã xảy ra lỗi khi hủy đơn hàng.";
+      setCancelMessage(message);
+      toast({
+        title: "Không thể hủy đơn",
+        description: message,
+        variant: "destructive",
+      });
+    }
+  };
 
   // ==========================
   // FETCH ORDER
@@ -324,7 +403,16 @@ function OrderTrackingPageContent() {
           </div>
 
           {/* Order state view */}
-          <OrderStateRenderer order={order} onChat={handleOpenChat} />
+          {cancelMessage && (
+            <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {cancelMessage}
+            </div>
+          )}
+          <OrderStateRenderer
+            order={order}
+            onChat={handleOpenChat}
+            onCancel={handleCancelBooking}
+          />
         </div>
       </main>
 

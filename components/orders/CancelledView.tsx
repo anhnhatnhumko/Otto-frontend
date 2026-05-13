@@ -37,10 +37,10 @@ const CancelledView = ({ order, onRebook, onSupport }: CancelledViewProps) => {
 
         {/* Order summary */}
         <div className="bg-muted/50 rounded-xl p-4 space-y-2 text-sm">
-          <div className="flex justify-between">
+          {/* <div className="flex justify-between">
             <span className="text-muted-foreground">Mã đơn</span>
             <span className="font-mono text-foreground">{order._id}</span>
-          </div>
+          </div> */}
           <div className="flex justify-between">
             <span className="text-muted-foreground">Dịch vụ</span>
             <span className="text-foreground">{order.service}</span>

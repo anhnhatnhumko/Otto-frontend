@@ -28,6 +28,7 @@
     ...handlers
   }: OrderStateRendererProps) => {
     const router = useRouter();
+    const normalizedStatus = String(order.status || "").toUpperCase();
     const handlePay = async () => {
       console.log("🚀 START CONFIRM");
 
@@ -51,7 +52,7 @@
       await new Promise((r) => setTimeout(r, 300));
       router.push(`/orders/${order._id}/thank-you`); 
     };
-    switch (order.status) {
+    switch (normalizedStatus) {
       case "SEARCHING":
         return <SearchingView order={order} onCancel={handlers.onCancel} />;
       case "WAITING_CONFIRMATION":

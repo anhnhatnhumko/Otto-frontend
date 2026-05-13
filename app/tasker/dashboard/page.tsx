@@ -405,8 +405,77 @@ const TaskerDashboardContent = () => {
 
     socket.on("chat:message", handleIncomingChatMessage);
 
+    // General order update listener - update/remove jobs immediately
+    const handleOrderStatus = (payload: any) => {
+      try {
+        const id = String(payload?.orderId ?? payload?.id ?? payload?._id ?? "");
+        if (!id) return;
+
+        const status = String(payload?.status ?? payload?.data?.status ?? payload?.order?.status ?? "").toUpperCase();
+
+        if (status === "CANCELLED" || status === "AUTO_CANCELLED") {
+          // remove job immediately from lists
+          setJobs((prev) => prev.filter((j) => j.id !== id));
+          // also close incoming popup if it matches
+          setIncomingJob((prev) => (prev && prev.id === id ? null : prev));
+          setShowNewJobPopup((prev) => (incomingJob && incomingJob.id === id ? false : prev));
+        } else {
+          // update job status if present in list
+          const allowed = new Set([
+            "SEARCHING",
+            "ASSIGNED",
+            "IN_PROGRESS",
+            "WAITING_CONFIRMATION",
+            "COMPLETED",
+            "CANCELLED",
+            "TIMEOUT",
+          ] as const);
+          const statusUp = String(status).toUpperCase();
+          if (allowed.has(statusUp as any)) {
+            setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, status: statusUp as any } : j)));
+          }
+        }
+      } catch (err) {
+        console.error('Error handling order status socket event', err);
+      }
+    };
+
+    const handleOrderFull = (order: any) => {
+      try {
+        const id = String(order?._id ?? order?.id ?? "");
+        if (!id) return;
+        const status = String(order?.status ?? "").toUpperCase();
+        if (status === "CANCELLED" || status === "AUTO_CANCELLED") {
+          setJobs((prev) => prev.filter((j) => j.id !== id));
+          setIncomingJob((prev) => (prev && prev.id === id ? null : prev));
+          setShowNewJobPopup((prev) => (incomingJob && incomingJob.id === id ? false : prev));
+        } else {
+          const allowed = new Set([
+            "SEARCHING",
+            "ASSIGNED",
+            "IN_PROGRESS",
+            "WAITING_CONFIRMATION",
+            "COMPLETED",
+            "CANCELLED",
+            "TIMEOUT",
+          ] as const);
+          const statusUp = String(status).toUpperCase();
+          if (allowed.has(statusUp as any)) {
+            setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, status: statusUp as any } : j)));
+          }
+        }
+      } catch (err) {
+        console.error('Error handling order full socket event', err);
+      }
+    };
+
+    socket.on('order:status-updated', handleOrderStatus);
+    socket.on('order:updated', handleOrderFull);
+
     return () => {
       socket.off("chat:message", handleIncomingChatMessage);
+      socket.off('order:status-updated', handleOrderStatus);
+      socket.off('order:updated', handleOrderFull);
     };
   }, [userId, chatOrderId, chatOpen]);
 

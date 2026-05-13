@@ -61,7 +61,7 @@ const TimeoutView = ({ order, onRetry, onCancel }: TimeoutViewProps) => {
           </ul>
         </div>
 
-        {/* Actions */}
+        {/* Actions
         <div className="flex gap-3">
           {onCancel && (
             <Button variant="outline" className="flex-1" onClick={onCancel}>
@@ -74,7 +74,7 @@ const TimeoutView = ({ order, onRetry, onCancel }: TimeoutViewProps) => {
               Tìm lại Tasker
             </Button>
           )}
-        </div>
+        </div> */}
       </CardContent>
     </Card>
   );

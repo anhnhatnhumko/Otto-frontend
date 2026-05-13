@@ -74,6 +74,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useIsMobile } from "@/hooks/use-mobile";
 import WalletCard from "@/components/wallet/WalletCard";
+import OrderStateRenderer from "@/components/orders/OrderStateRenderer";
 import { useUserStore } from "@/app/store/useUserStore";
 import { handleAuthMeResponse } from "@/lib/auth-client";
 import { requireApiUrl } from "@/lib/api-url";
@@ -107,6 +108,8 @@ interface MappedOrder {
   service: string;
   date: string;
   time: string;
+  startTime: string;
+  endTime: string;
   address: string;
   price: number;
   tasker?: { name: string; avatar?: string; rating: number; completedJobs?: number; phone?: string };
@@ -307,6 +310,20 @@ const CustomerDashboard = () => {
     }).format(amount);
   };
 
+  const canCancelOrder = (order: MappedOrder) => {
+    const normalizedStatus = order.status.toUpperCase();
+    if (normalizedStatus !== "SEARCHING" && normalizedStatus !== "ASSIGNED") {
+      return false;
+    }
+
+    const start = new Date(order.startTime);
+    if (Number.isNaN(start.getTime())) {
+      return true;
+    }
+
+    return start.getTime() - Date.now() > 60 * 60 * 1000;
+  };
+
   const getStatusBadge = (status: string, paymentStatus?: string, isPaid?: boolean) => {
     const normalizedStatus = status.toLowerCase();
     const normalizedPayment = (paymentStatus || "").toLowerCase();
@@ -426,12 +443,60 @@ const CustomerDashboard = () => {
     });
   };
 
-  const handleCancelBooking = (id: string) => {
-    toast({
-      title: "Đã hủy đơn hàng",
-      description: `Đơn hàng ${id} đã được hủy thành công`,
-      variant: "destructive",
-    });
+  const handleCancelBooking = async (order: MappedOrder) => {
+    if (!canCancelOrder(order)) {
+      toast({
+        title: "Không thể hủy đơn",
+        description: "Đơn hàng chỉ được hủy trước giờ bắt đầu ít nhất 1 tiếng.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/orders/${order._id}/cancel`, {
+        method: "PATCH",
+        credentials: "include",
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        const message =
+          data?.message || "Không thể hủy đơn hàng lúc này. Vui lòng thử lại.";
+        throw new Error(Array.isArray(message) ? message[0] : message);
+      }
+
+      setUpcomingBookings((prev) =>
+        prev.map((item) =>
+          item._id === order._id ? { ...item, status: "CANCELLED" } : item,
+        ),
+      );
+      setRecentOrders((prev) =>
+        prev.map((item) =>
+          item._id === order._id ? { ...item, status: "CANCELLED" } : item,
+        ),
+      );
+      setSelectedOrder((prev) =>
+        prev && prev._id === order._id ? { ...prev, status: "CANCELLED" } : prev,
+      );
+
+      toast({
+        title: "Đã hủy đơn hàng",
+        description:
+          data?.message || `Đơn hàng ${order._id} đã được hủy thành công`,
+        variant: "destructive",
+      });
+    } catch (err) {
+      toast({
+        title: "Không thể hủy đơn",
+        description:
+          err instanceof Error
+            ? err.message
+            : "Đã xảy ra lỗi khi hủy đơn hàng.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleRebookService = (service: string) => {
@@ -776,11 +841,11 @@ const CustomerDashboard = () => {
                           <MessageSquare size={14} className="mr-1" />
                           Nhắn tin
                         </Button>
-                        {booking.status === "pending" && (
+                        {canCancelOrder(booking) && (
                           <Button
                             variant="destructive"
                             size="sm"
-                            onClick={() => handleCancelBooking(booking._id)}
+                            onClick={() => handleCancelBooking(booking)}
                           >
                             Hủy
                           </Button>
@@ -1054,50 +1119,66 @@ const CustomerDashboard = () => {
 
                   {selectedOrder && (
                     <div className="space-y-4">
-                      <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-xs text-muted-foreground">Mã đơn</p>
-                            <p className="font-mono text-sm font-medium">{selectedOrder._id}</p>
-                          </div>
-                          {getStatusBadge(
-                            selectedOrder.status,
-                            selectedOrder.paymentStatus,
-                            selectedOrder.isPaid,
-                          )}
-                        </div>
+                      {selectedOrder.status.toUpperCase() === "SEARCHING" ||
+                      selectedOrder.status.toUpperCase() === "ASSIGNED" ? (
+                        <>
+                          <OrderStateRenderer
+                            order={selectedOrder as any}
+                            onCancel={() => handleCancelBooking(selectedOrder)}
+                          />
 
-                        <div className="space-y-2 text-sm">
-                          <div className="flex items-start justify-between gap-3">
-                            <span className="text-muted-foreground">Dịch vụ</span>
-                            <span className="font-medium text-right">{selectedOrder.service}</span>
-                          </div>
-                          <div className="flex items-start justify-between gap-3">
-                            <span className="text-muted-foreground">Ngày đặt</span>
-                            <span className="font-medium text-right">{selectedOrder.date}</span>
-                          </div>
-                          <div className="flex items-start justify-between gap-3">
-                            <span className="text-muted-foreground">Giờ đặt</span>
-                            <span className="font-medium text-right">{selectedOrder.time}</span>
-                          </div>
-                          <div className="flex items-start justify-between gap-3">
-                            <span className="text-muted-foreground">Địa chỉ</span>
-                            <span className="font-medium text-right">{selectedOrder.address}</span>
-                          </div>
-                          <div className="flex items-start justify-between gap-3">
-                            <span className="text-muted-foreground">Tổng tiền</span>
-                            <span className="font-bold text-primary text-right">
-                              {formatCurrency(selectedOrder.price)}
-                            </span>
-                          </div>
-                          {selectedOrder.tasker && (
-                            <div className="flex items-start justify-between gap-3">
-                              <span className="text-muted-foreground">Tasker</span>
-                              <span className="font-medium text-right">{selectedOrder.tasker.name}</span>
-                            </div>
+                          {!canCancelOrder(selectedOrder) && (
+                            <p className="text-sm text-destructive text-center">
+                              Không thể hủy đơn trong vòng 1 tiếng trước giờ bắt đầu.
+                            </p>
                           )}
+                        </>
+                      ) : (
+                        <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-xs text-muted-foreground">Mã đơn</p>
+                              <p className="font-mono text-sm font-medium">{selectedOrder._id}</p>
+                            </div>
+                            {getStatusBadge(
+                              selectedOrder.status,
+                              selectedOrder.paymentStatus,
+                              selectedOrder.isPaid,
+                            )}
+                          </div>
+
+                          <div className="space-y-2 text-sm">
+                            <div className="flex items-start justify-between gap-3">
+                              <span className="text-muted-foreground">Dịch vụ</span>
+                              <span className="font-medium text-right">{selectedOrder.service}</span>
+                            </div>
+                            <div className="flex items-start justify-between gap-3">
+                              <span className="text-muted-foreground">Ngày đặt</span>
+                              <span className="font-medium text-right">{selectedOrder.date}</span>
+                            </div>
+                            <div className="flex items-start justify-between gap-3">
+                              <span className="text-muted-foreground">Giờ đặt</span>
+                              <span className="font-medium text-right">{selectedOrder.time}</span>
+                            </div>
+                            <div className="flex items-start justify-between gap-3">
+                              <span className="text-muted-foreground">Địa chỉ</span>
+                              <span className="font-medium text-right">{selectedOrder.address}</span>
+                            </div>
+                            <div className="flex items-start justify-between gap-3">
+                              <span className="text-muted-foreground">Tổng tiền</span>
+                              <span className="font-bold text-primary text-right">
+                                {formatCurrency(selectedOrder.price)}
+                              </span>
+                            </div>
+                            {selectedOrder.tasker && (
+                              <div className="flex items-start justify-between gap-3">
+                                <span className="text-muted-foreground">Tasker</span>
+                                <span className="font-medium text-right">{selectedOrder.tasker.name}</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
+                      )}
 
                       <div className="rounded-xl border border-border p-4">
                         <p className="text-sm font-medium text-foreground mb-2">Đánh giá</p>

@@ -35,6 +35,9 @@ export const mapOrder = (data: any) => {
     // 🔥 RANGE TIME
     ...formatDateTimeRange(data.startTime, data.endTime),
 
+    startTime: data.startTime ? new Date(data.startTime).toISOString() : "",
+    endTime: data.endTime ? new Date(data.endTime).toISOString() : "",
+
     address: data.address || data.addressDetail || "",
 
     price: data.totalPrice || 0,

@@ -56,7 +56,7 @@ const SearchingView = ({ order, onCancel }: SearchingViewProps) => {
         {onCancel && (
           <Button variant="outline" className="w-full" onClick={onCancel}>
             <X size={16} className="mr-2" />
-            Hủy tìm kiếm
+            Hủy đơn hàng
           </Button>
         )}
       </CardContent>
