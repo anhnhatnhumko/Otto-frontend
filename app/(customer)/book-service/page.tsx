@@ -18,6 +18,7 @@ import {
   Bug,
   Calendar,
   Clock,
+  AlertTriangle,
   MapPin,
   CheckCircle2,
   ArrowRight,
@@ -25,7 +26,7 @@ import {
   LucideIcon,
   CreditCard,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import AddressSelector, { AddressData } from "@/components/AddressSelector";
 
 interface Service {
@@ -85,6 +86,9 @@ const paymentMethods = [
 
 const BookService = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const serviceIdFromUrl = searchParams.get("serviceId");
+  
   const [step, setStep] = useState(1);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedDate, setSelectedDate] = useState("");
@@ -107,6 +111,15 @@ const BookService = () => {
     startTime && endTime
       ? parseInt(endTime.split(":")[0]) - parseInt(startTime.split(":")[0])
       : 0;
+
+  const selectedScheduleDateTime =
+    selectedDate && startTime ? new Date(`${selectedDate}T${startTime}:00`) : null;
+
+  const isWithinOneHourToStart = (() => {
+    if (!selectedScheduleDateTime) return false;
+    const diffMs = selectedScheduleDateTime.getTime() - Date.now();
+    return diffMs >= 0 && diffMs < 60 * 60 * 1000;
+  })();
 
   const totalPrice =
     selectedService && totalHours ? totalHours * selectedService.priceValue : 0;
@@ -139,21 +152,30 @@ const BookService = () => {
         }));
 
         setServices(mapped);
+
+        // Pre-select service if serviceId is in URL
+        if (serviceIdFromUrl) {
+          const foundService = mapped.find((s) => s.id === serviceIdFromUrl);
+          if (foundService) {
+            setSelectedService(foundService);
+            setStep(2);
+          }
+        }
       } catch (err) {
         console.error("Load services failed", err);
       }
     };
 
     fetchServices();
-  }, []);
+  }, [serviceIdFromUrl]);
 
   const handleServiceSelect = (service: Service) => {
     setSelectedService(service);
     setStep(2);
   };
 
-  const availableHours = Array.from({ length: 15 }, (_, i) => {
-    const hour = 6 + i; // 6:00 - 20:00
+  const availableHours = Array.from({ length: 18 }, (_, i) => {
+    const hour = 6 + i; // 6:00 - 23:00 (tối đến 12h đêm)
     return `${hour.toString().padStart(2, "0")}:00`;
   });
 
@@ -418,6 +440,15 @@ const BookService = () => {
                         tiếng)
                       </p>
                     )}
+
+                    {isWithinOneHourToStart && (
+                      <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-amber-800">
+                        <p className="text-sm font-medium flex items-start gap-2">
+                          <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                          Lưu ý: Đơn bắt đầu trong vòng 1 tiếng sẽ không thể hủy.
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Address */}
@@ -536,6 +567,15 @@ const BookService = () => {
                       {totalPrice.toLocaleString()}đ
                     </span>
                   </div>
+
+                  {isWithinOneHourToStart && (
+                    <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-amber-800">
+                      <p className="text-sm font-medium flex items-start gap-2">
+                        <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                        Đơn này sẽ bắt đầu trong vòng 1 tiếng, bạn sẽ không thể hủy sau khi đặt.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-3">

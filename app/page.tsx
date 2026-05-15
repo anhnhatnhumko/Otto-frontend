@@ -1,4 +1,6 @@
-// "use client";
+"use client";
+
+import { useEffect, useState } from "react";
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
 import ServiceCard from "@/components/ServiceCard";
@@ -16,48 +18,25 @@ import {
   Shield,
   Clock,
   Users,
+  Brush,
+  Bug,
 } from "lucide-react";
 import Link from "next/link";
+import { requireApiUrl } from "@/lib/api-url";
 
-const services = [
-  {
-    icon: "home",
-    title: "Dọn dẹp nhà cửa",
-    description: "Dịch vụ vệ sinh nhà ở chuyên nghiệp, sạch sẽ, an toàn",
-    price: "150.000đ/giờ",
-    popular: true,
-  },
-  {
-    icon: "shirt",
-    title: "Giặt ủi",
-    description: "Giặt sấy, ủi quần áo tại nhà nhanh chóng",
-    price: "80.000đ/kg",
-  },
-  {
-    icon: "wrench", 
-    title: "Sửa chữa điện nước",
-    description: "Thợ điện nước chuyên nghiệp, xử lý nhanh mọi sự cố",
-    price: "200.000đ/lần",
-  },
-  {
-    icon: "heart",
-    title: "Chăm sóc người già",
-    description: "Dịch vụ chăm sóc tận tâm cho người lớn tuổi",
-    price: "300.000đ/ngày",
-  },
-  {
-    icon: "sparkles",
-    title: "Vệ sinh máy lạnh",
-    description: "Bảo dưỡng, vệ sinh máy lạnh định kỳ",
-    price: "250.000đ/máy",
-  },
-  {
-    icon: "car",
-    title: "Rửa xe tại nhà",
-    description: "Dịch vụ rửa xe chuyên nghiệp tại nhà bạn",
-    price: "100.000đ/lần",
-  },
-];
+const getIconKeyByName = (name: string): string => {
+  const nameMap: Record<string, string> = {
+    "Dọn dẹp nhà cửa": "home",
+    "Giặt ủi": "shirt",
+    "Sửa chữa điện, nước": "wrench",
+    "Chăm sóc người cao tuổi": "heart",
+    "Vệ sinh máy lạnh": "sparkles",
+    "Rửa xe tại nhà": "car",
+    "Sơn nhà": "brush",
+    "Diệt côn trùng": "bug",
+  };
+  return nameMap[name] || "home";
+};
 
 const stats = [
   { number: "50K+", label: "Khách hàng tin tưởng" },
@@ -114,6 +93,38 @@ const testimonials = [
 ];
 
 const Index = () => {
+  const [services, setServices] = useState<any[]>([]);
+  const [loadingServices, setLoadingServices] = useState(true);
+
+  useEffect(() => {
+    const fetchServices = async () => {
+      try {
+        const API_URL = requireApiUrl();
+        const res = await fetch(`${API_URL}/services`, {
+          credentials: "include",
+        });
+        const data = await res.json();
+        
+        const mapped = data.slice(0, 6).map((s: any) => ({
+          id: s._id,
+          icon: getIconKeyByName(s.name),
+          title: s.name,
+          description: s.description,
+          price: `${s.pricePerHour.toLocaleString()}đ/giờ`,
+          popular: data.indexOf(s) === 0,
+        }));
+        
+        setServices(mapped);
+      } catch (err) {
+        console.error("Failed to fetch services:", err);
+      } finally {
+        setLoadingServices(false);
+      }
+    };
+
+    fetchServices();
+  }, []);
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -132,9 +143,9 @@ const Index = () => {
                 <span>Nền tảng dịch vụ gia đình #1 Việt Nam</span>
               </div>
 
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground leading-tight">
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground leading-[1.2] ">
                 Cuộc sống tiện lợi
-                <span className="text-gradient block">chỉ với một chạm</span>
+                <span className="text-gradient block mt-3 pb-2">chỉ với một chạm</span>
               </h1>
 
               <p className="text-lg text-muted-foreground max-w-lg">
@@ -248,9 +259,15 @@ const Index = () => {
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {services.map((service, index) => (
-              <ServiceCard key={index} {...service} />
-            ))}
+            {loadingServices ? (
+              <p className="col-span-full text-center text-muted-foreground">Đang tải dịch vụ...</p>
+            ) : services.length === 0 ? (
+              <p className="col-span-full text-center text-muted-foreground">Không có dịch vụ nào</p>
+            ) : (
+              services.map((service) => (
+                <ServiceCard key={service.id} {...service} serviceId={service.id} />
+              ))
+            )}
           </div>
 
           <div className="text-center mt-10">

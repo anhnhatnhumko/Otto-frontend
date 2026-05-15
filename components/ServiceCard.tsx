@@ -16,6 +16,7 @@ type ServiceCardProps = {
   description?: string;
   price?: string;
   popular?: boolean;
+  serviceId?: string;
 };
 
 const iconMap: Record<string, any> = {
@@ -31,9 +32,17 @@ export default function ServiceCard(props: ServiceCardProps) {
   const router = useRouter();
   const Icon = iconMap[props.icon];
 
+  const handleClick = () => {
+    if (props.serviceId) {
+      router.push(`/book-service?serviceId=${props.serviceId}`);
+    } else {
+      router.push("/book-service");
+    }
+  };
+
   return (
     <div
-      onClick={() => router.push("/booking")}
+      onClick={handleClick}
       className="cursor-pointer rounded-xl bg-white p-6 shadow-card hover:shadow-card-hover transition"
     >
       {/* Icon */}

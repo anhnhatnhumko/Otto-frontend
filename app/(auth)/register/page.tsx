@@ -5,7 +5,7 @@ import { Label } from "@radix-ui/react-label";
 import { Eye, EyeOff, Lock, Mail, Phone, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { register } from "@/lib/auth";
 
 export default function RegisterPage() {
@@ -18,8 +18,32 @@ export default function RegisterPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [registerSuccess, setRegisterSuccess] = useState(false);
+  const [redirectCountdown, setRedirectCountdown] = useState(10);
 
   const router = useRouter();
+
+  useEffect(() => {
+    if (!registerSuccess) return;
+
+    const timer = window.setInterval(() => {
+      setRedirectCountdown((prev) => {
+        if (prev <= 1) {
+          window.clearInterval(timer);
+          return 0;
+        }
+
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [registerSuccess]);
+
+  useEffect(() => {
+    if (!registerSuccess || redirectCountdown !== 0) return;
+    router.push("/login");
+  }, [registerSuccess, redirectCountdown, router]);
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
@@ -28,12 +52,48 @@ export default function RegisterPage() {
 
     try {
       await register({ fullName: name, email, phone, password });
-      router.push("/login");
+      setRegisterSuccess(true);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
+  }
+
+  if (registerSuccess) {
+    return (
+      <div>
+        <div className="flex items-center gap-2 mb-8">
+          <div className="h-9 w-9 rounded-lg bg-gradient-hero text-white flex items-center justify-center font-bold">
+            O
+          </div>
+          <span className="text-xl font-bold text-gray-900">Otto</span>
+        </div>
+
+        <div className="rounded-2xl border border-green-200 bg-green-50 p-5">
+          <h1 className="text-2xl font-bold text-center mb-2">
+            Đăng ký thành công 
+          </h1>
+          <p className="text-sm text-gray-700 leading-6">
+            Hệ thống đã gửi email xác thực đến <span className="font-semibold">{email}</span>.
+            Vui lòng kiểm tra hộp thư (và cả thư rác) để xác thực tài khoản trước khi đăng nhập.
+          </p>
+          <p className="mt-4 text-sm font-medium text-gray-800">
+            Tự động chuyển đến trang đăng nhập sau <span className="text-primary">{redirectCountdown}s</span>...
+          </p>
+        </div>
+
+        <div className="mt-6">
+          <button
+            type="button"
+            onClick={() => router.push("/login")}
+            className="w-full rounded-xl bg-gradient-hero py-3 font-semibold text-white shadow-md transition"
+          >
+            Đến trang đăng nhập ngay
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (

@@ -355,6 +355,76 @@ const TaskerDashboardContent = () => {
     });
   };
 
+  // 🔥 SETUP SOCKET LISTENERS - NEVER CLEANUP WHEN INCOMINGOB CHANGES
+  useEffect(() => {
+    if (!userId) return;
+
+    const socket = connectSocket(userId, "TASKER");
+
+    // 🔥 HANDLE REALTIME CANCEL NOTIFICATION FROM CUSTOMER
+    const handleOrderCancelled = (payload: any) => {
+      try {
+        const orderId = String(payload?.orderId ?? "");
+        if (!orderId) return;
+
+        console.log("🔥🔥🔥 Order cancelled realtime:", orderId);
+
+        // Remove job immediately from lists
+        setJobs((prev) => prev.filter((j) => j.id !== orderId));
+        // Also close incoming popup if it matches
+        setIncomingJob((prev) => (prev && prev.id === orderId ? null : prev));
+        setShowNewJobPopup((prev) => false);
+
+        // Show toast notification
+        toast({
+          title: "Khách hàng đã hủy",
+          description: "Đơn hàng đã được khách hàng hủy",
+          variant: "destructive",
+        });
+      } catch (err) {
+        console.error('Error handling order:cancelled event', err);
+      }
+    };
+
+    // 🔥 HANDLE REALTIME KEEP NOTIFICATION (timeout order kept by customer)
+    const handleOrderKept = (payload: any) => {
+      try {
+        const orderId = String(payload?.orderId ?? "");
+        if (!orderId) return;
+
+        console.log("🔥🔥🔥 Order kept realtime:", orderId);
+
+        // Update job status back to ASSIGNED (from TIMEOUT)
+        setJobs((prev) =>
+          prev.map((j) =>
+            j.id === orderId ? { ...j, status: "ASSIGNED" } : j
+          )
+        );
+
+        // Show toast notification
+        toast({
+          title: "Đơn hàng được giữ lại",
+          description: "Khách hàng đã giữ đơn hàng này",
+        });
+      } catch (err) {
+        console.error('Error handling order:kept event', err);
+      }
+    };
+
+    // Register listeners
+    socket.on('order:cancelled', handleOrderCancelled);
+    socket.on('order:kept', handleOrderKept);
+
+    console.log("✅ Socket listeners registered for order:cancelled and order:kept");
+
+    // Cleanup only these listeners
+    return () => {
+      socket.off('order:cancelled', handleOrderCancelled);
+      socket.off('order:kept', handleOrderKept);
+      console.log("🧹 Cleaned up order:cancelled and order:kept listeners");
+    };
+  }, [userId]);
+
   useEffect(() => {
     if (!userId) return;
 
@@ -469,67 +539,13 @@ const TaskerDashboardContent = () => {
       }
     };
 
-    // 🔥 HANDLE REALTIME CANCEL NOTIFICATION FROM CUSTOMER
-    const handleOrderCancelled = (payload: any) => {
-      try {
-        const orderId = String(payload?.orderId ?? "");
-        if (!orderId) return;
-
-        console.log("🔥 Order cancelled realtime:", orderId);
-
-        // Remove job immediately from lists
-        setJobs((prev) => prev.filter((j) => j.id !== orderId));
-        // Also close incoming popup if it matches
-        setIncomingJob((prev) => (prev && prev.id === orderId ? null : prev));
-        setShowNewJobPopup((prev) => (incomingJob && incomingJob.id === orderId ? false : prev));
-
-        // Show toast notification
-        toast({
-          title: "Khách hàng đã hủy",
-          description: "Đơn hàng đã được khách hàng hủy",
-          variant: "destructive",
-        });
-      } catch (err) {
-        console.error('Error handling order:cancelled event', err);
-      }
-    };
-
-    // 🔥 HANDLE REALTIME KEEP NOTIFICATION (timeout order kept by customer)
-    const handleOrderKept = (payload: any) => {
-      try {
-        const orderId = String(payload?.orderId ?? "");
-        if (!orderId) return;
-
-        console.log("🔥 Order kept realtime:", orderId);
-
-        // Update job status back to ASSIGNED (from TIMEOUT)
-        setJobs((prev) =>
-          prev.map((j) =>
-            j.id === orderId ? { ...j, status: "ASSIGNED" } : j
-          )
-        );
-
-        // Show toast notification
-        toast({
-          title: "Đơn hàng được giữ lại",
-          description: "Khách hàng đã giữ đơn hàng này",
-        });
-      } catch (err) {
-        console.error('Error handling order:kept event', err);
-      }
-    };
-
     socket.on('order:status-updated', handleOrderStatus);
     socket.on('order:updated', handleOrderFull);
-    socket.on('order:cancelled', handleOrderCancelled);
-    socket.on('order:kept', handleOrderKept);
 
     return () => {
       socket.off("chat:message", handleIncomingChatMessage);
       socket.off('order:status-updated', handleOrderStatus);
       socket.off('order:updated', handleOrderFull);
-      socket.off('order:cancelled', handleOrderCancelled);
-      socket.off('order:kept', handleOrderKept);
     };
   }, [userId, chatOrderId, chatOpen, incomingJob]);
 
