@@ -469,15 +469,69 @@ const TaskerDashboardContent = () => {
       }
     };
 
+    // 🔥 HANDLE REALTIME CANCEL NOTIFICATION FROM CUSTOMER
+    const handleOrderCancelled = (payload: any) => {
+      try {
+        const orderId = String(payload?.orderId ?? "");
+        if (!orderId) return;
+
+        console.log("🔥 Order cancelled realtime:", orderId);
+
+        // Remove job immediately from lists
+        setJobs((prev) => prev.filter((j) => j.id !== orderId));
+        // Also close incoming popup if it matches
+        setIncomingJob((prev) => (prev && prev.id === orderId ? null : prev));
+        setShowNewJobPopup((prev) => (incomingJob && incomingJob.id === orderId ? false : prev));
+
+        // Show toast notification
+        toast({
+          title: "Khách hàng đã hủy",
+          description: "Đơn hàng đã được khách hàng hủy",
+          variant: "destructive",
+        });
+      } catch (err) {
+        console.error('Error handling order:cancelled event', err);
+      }
+    };
+
+    // 🔥 HANDLE REALTIME KEEP NOTIFICATION (timeout order kept by customer)
+    const handleOrderKept = (payload: any) => {
+      try {
+        const orderId = String(payload?.orderId ?? "");
+        if (!orderId) return;
+
+        console.log("🔥 Order kept realtime:", orderId);
+
+        // Update job status back to ASSIGNED (from TIMEOUT)
+        setJobs((prev) =>
+          prev.map((j) =>
+            j.id === orderId ? { ...j, status: "ASSIGNED" } : j
+          )
+        );
+
+        // Show toast notification
+        toast({
+          title: "Đơn hàng được giữ lại",
+          description: "Khách hàng đã giữ đơn hàng này",
+        });
+      } catch (err) {
+        console.error('Error handling order:kept event', err);
+      }
+    };
+
     socket.on('order:status-updated', handleOrderStatus);
     socket.on('order:updated', handleOrderFull);
+    socket.on('order:cancelled', handleOrderCancelled);
+    socket.on('order:kept', handleOrderKept);
 
     return () => {
       socket.off("chat:message", handleIncomingChatMessage);
       socket.off('order:status-updated', handleOrderStatus);
       socket.off('order:updated', handleOrderFull);
+      socket.off('order:cancelled', handleOrderCancelled);
+      socket.off('order:kept', handleOrderKept);
     };
-  }, [userId, chatOrderId, chatOpen]);
+  }, [userId, chatOrderId, chatOpen, incomingJob]);
 
   useEffect(() => {
     const shouldOpenChat = searchParams.get("chat") === "true";
@@ -707,12 +761,53 @@ const TaskerDashboardContent = () => {
       }
     };
 
+    // 🔥 HANDLE REALTIME CANCEL FROM CUSTOMER
+    const handleCancelled = (payload: any) => {
+      const payloadOrderId = String(payload?.orderId ?? "");
+      if (payloadOrderId !== orderId) return;
+
+      console.log("🔥 Incoming job cancelled:", orderId);
+
+      setShowNewJobPopup(false);
+      setIncomingJob(null);
+      setJobs((prev) => prev.filter((j) => j.id !== orderId));
+
+      toast({
+        title: "Khách hàng đã hủy",
+        description: "Đơn hàng này đã bị hủy",
+        variant: "destructive",
+      });
+    };
+
+    // 🔥 HANDLE REALTIME KEEP (timeout order kept by customer)
+    const handleKept = (payload: any) => {
+      const payloadOrderId = String(payload?.orderId ?? "");
+      if (payloadOrderId !== orderId) return;
+
+      console.log("🔥 Incoming job kept:", orderId);
+
+      setShowNewJobPopup(false);
+      setIncomingJob(null);
+      setJobs((prev) =>
+        prev.map((j) => (j.id === orderId ? { ...j, status: "ASSIGNED" } : j))
+      );
+
+      toast({
+        title: "Đơn được giữ",
+        description: "Khách hàng đã giữ đơn này",
+      });
+    };
+
     socket.on("order:status-updated", handleStatus);
     socket.on("order:updated", handleFullUpdate);
+    socket.on("order:cancelled", handleCancelled);
+    socket.on("order:kept", handleKept);
 
     return () => {
       socket.off("order:status-updated", handleStatus);
       socket.off("order:updated", handleFullUpdate);
+      socket.off("order:cancelled", handleCancelled);
+      socket.off("order:kept", handleKept);
       try {
         socket.disconnect();
       } catch (e) {

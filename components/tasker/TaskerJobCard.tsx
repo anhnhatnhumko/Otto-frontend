@@ -36,13 +36,25 @@ const canStartJob = (job: Job): { allowed: boolean; message?: string } => {
   if (now < oneHourBefore) {
     const remainingMs = oneHourBefore - now;
     const remainingMinutes = Math.ceil(remainingMs / (60 * 1000));
+    const remainingDays = Math.floor(remainingMinutes / (60 * 24));
     const remainingHours = Math.floor(remainingMinutes / 60);
     const remainingMins = remainingMinutes % 60;
 
     let timeDisplay = "";
-    if (remainingHours > 0) {
-      timeDisplay = remainingMins > 0 
-        ? `${remainingHours} giờ ${remainingMins} phút` 
+    if (remainingDays > 0) {
+      const hoursAfterDays = Math.floor((remainingMinutes % (60 * 24)) / 60);
+      const minsAfterDays = remainingMinutes % 60;
+
+      timeDisplay = hoursAfterDays > 0
+        ? minsAfterDays > 0
+          ? `${remainingDays} ngày ${hoursAfterDays} giờ ${minsAfterDays} phút`
+          : `${remainingDays} ngày ${hoursAfterDays} giờ`
+        : minsAfterDays > 0
+          ? `${remainingDays} ngày ${minsAfterDays} phút`
+          : `${remainingDays} ngày`;
+    } else if (remainingHours > 0) {
+      timeDisplay = remainingMins > 0
+        ? `${remainingHours} giờ ${remainingMins} phút`
         : `${remainingHours} giờ`;
     } else {
       timeDisplay = `${remainingMinutes} phút`;
@@ -64,6 +76,21 @@ const canStartJob = (job: Job): { allowed: boolean; message?: string } => {
   return { allowed: true };
 };
 
+const getStartWarning = (job: Job): string | null => {
+  if (!job.scheduleTime) return null;
+
+  const scheduleTime = new Date(job.scheduleTime).getTime();
+  const now = new Date().getTime();
+  const fifteenMinBefore = scheduleTime - 15 * 60 * 1000;
+
+  if (now >= fifteenMinBefore && now < scheduleTime) {
+    const remainingMinutes = Math.ceil((scheduleTime - now) / (60 * 1000));
+    return `⏰ Còn ${remainingMinutes}p`;
+  }
+
+  return null;
+};
+
 const TaskerJobCard = ({
   job,
   onDetail,
@@ -73,6 +100,7 @@ const TaskerJobCard = ({
   onComplete,
 }: TaskerJobCardProps) => {
   const [startStatus, setStartStatus] = useState(canStartJob(job));
+  const warningMessage = getStartWarning(job);
   // Use selector to avoid unnecessary re-renders
   const unreadCount = useUnreadMessagesStore((state) => state.unreadCounts[job.id] || 0);
 
@@ -154,9 +182,9 @@ const TaskerJobCard = ({
 
           {job.status === "ASSIGNED" && (
             <div className="flex gap-2 flex-col">
-              {startStatus.message && startStatus.message.includes("5 phút") && (
+              {warningMessage && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded p-2 text-xs text-yellow-700">
-                  ⏰ {startStatus.message}
+                  {warningMessage}
                 </div>
               )}
               <div className="flex gap-3">

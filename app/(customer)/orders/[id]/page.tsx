@@ -5,8 +5,10 @@ import { useRouter, useParams, usePathname, useSearchParams } from "next/navigat
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import OrderStateRenderer from "@/components/orders/OrderStateRenderer";
+import OverdueOrderPopup from "@/components/OverdueOrderPopup";
 import ChatDialog from "@/components/dialogs/ChatDialog";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useOverdueOrder } from "@/hooks/useOverdueOrder";
 import { ArrowLeft, Activity, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -110,6 +112,17 @@ function OrderTrackingPageContent() {
   const [chatPeerName, setChatPeerName] = useState<string>("");
   const [cancelMessage, setCancelMessage] = useState<string | null>(null);
 
+  // Popup quá hạn
+  const {
+    open: overdueOpen,
+    setOpen: setOverdueOpen,
+    overdueInfo,
+    showOverduePopup,
+    handleKeepOrder,
+    handleCancelOrder: handleCancelOrderTimeout,
+    loading: overdueLoading,
+  } = useOverdueOrder();
+
   const extractErrorMessage = (data: any, fallback: string) => {
     const message = data?.message;
     if (Array.isArray(message)) {
@@ -210,16 +223,22 @@ function OrderTrackingPageContent() {
       }
 
       const data = (await res.json()) as Record<string, unknown>;
+      const trackedOrder = toTrackingOrder(data);
 
-      setOrder(toTrackingOrder(data));
+      setOrder(trackedOrder);
       setLastSyncedAt(new Date().toLocaleTimeString("vi-VN"));
+
+      // Hiển thị popup quá hạn nếu order là TIMEOUT
+      if (String(trackedOrder.status).toUpperCase() === "TIMEOUT" && !overdueOpen) {
+        showOverduePopup(trackedOrder);
+      }
     } catch (err) {
       console.error("FETCH ORDER ERROR:", err);
     } finally {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [orderId]);
+  }, [orderId, overdueOpen, showOverduePopup]);
 
   useEffect(() => {
     if (!orderId || orderId === "undefined") return;
@@ -424,6 +443,45 @@ function OrderTrackingPageContent() {
         peerName={chatPeerName}
         initialMessages={chatMessages}
         onSend={handleSendChat}
+      />
+
+      <OverdueOrderPopup
+        open={overdueOpen}
+        onOpenChange={setOverdueOpen}
+        info={overdueInfo}
+        onKeep={async () => {
+          try {
+            await handleKeepOrder(orderId);
+            toast({
+              title: "Đơn hàng được giữ lại",
+              description: "Bạn đã chọn giữ lại đơn hàng này.",
+            });
+            await fetchOrder(false);
+          } catch (err) {
+            toast({
+              title: "Lỗi",
+              description: err instanceof Error ? err.message : "Không thể giữ đơn hàng",
+              variant: "destructive",
+            });
+          }
+        }}
+        onCancel={async () => {
+          try {
+            await handleCancelOrderTimeout(orderId);
+            toast({
+              title: "Đơn hàng đã hủy",
+              description: "Đơn hàng của bạn đã được hủy thành công.",
+              variant: "destructive",
+            });
+            await fetchOrder(false);
+          } catch (err) {
+            toast({
+              title: "Lỗi",
+              description: err instanceof Error ? err.message : "Không thể hủy đơn hàng",
+              variant: "destructive",
+            });
+          }
+        }}
       />
     </div>
   );
