@@ -4,8 +4,8 @@ import { requireApiUrl } from "@/lib/api-url";
 let socket: Socket | null = null;
 let socketIdentityKey: string | null = null;
 
-const buildIdentityKey = (userId?: string, role?: string) =>
-  `${userId ?? "anonymous"}:${role ?? "guest"}`;
+const buildIdentityKey = (userId?: string) =>
+  `${userId ?? "anonymous"}`;
 
 export const connectSocket = (
   userId: string,
@@ -14,7 +14,7 @@ export const connectSocket = (
 ) => {
   const URL = requireApiUrl();
 
-  const nextIdentityKey = buildIdentityKey(userId, role);
+  const nextIdentityKey = buildIdentityKey(userId);
   if (
     socket &&
     (socket.connected || socket.active) &&

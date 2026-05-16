@@ -18,6 +18,7 @@ export interface OverdueOrderInfo {
   taskerName: string;
   taskerRating: number;
   overdueMinutes: number;
+  popupType: 'warning' | 'timeout';
 }
 interface OverdueOrderPopupProps {
   open: boolean;
@@ -68,10 +69,6 @@ const OverdueOrderPopup = ({ open, onOpenChange, info, onKeep, onCancel, onCallT
             </Badge>
           </div>
           <div className="space-y-2 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground text-xs">Mã đơn:</span>
-              <span className="font-medium text-foreground text-xs">#{info.orderId}</span>
-            </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground text-xs">Dịch vụ:</span>
               <span className="font-medium text-foreground text-xs">{info.service}</span>

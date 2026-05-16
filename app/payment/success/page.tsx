@@ -25,7 +25,8 @@ type PaymentOrder = {
 const PaymentSuccessContent = () => {
   const router = useRouter();
   const params = useSearchParams();
-  const orderId = params.get("orderId");
+  const rawOrderId = params.get("orderId");
+  const orderId = rawOrderId && rawOrderId !== "undefined" ? rawOrderId : null;
   const source = params.get("source");
   const sessionId = params.get("session_id");
   const amount = Number(params.get("amount") || 0);
@@ -137,7 +138,11 @@ const PaymentSuccessContent = () => {
             const text = await confirmRes.text().catch(() => '');
             console.warn('Stripe confirm failed', confirmRes.status, text);
           } else {
-            // confirmed on backend — we'll let the normal polling pick up updated order
+            // Backend đã confirm thành công; không chờ polling để tránh kẹt màn xử lý.
+            if (isMounted) {
+              setIsConfirmed(true);
+            }
+
             console.log('Stripe session confirmed via frontend callback');
           }
         } catch (err) {

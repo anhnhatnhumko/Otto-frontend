@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { Button } from '@/components/ui/button';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +22,8 @@ const formatTimeAgo = (date: string) => {
 };
 
 export const NotificationCenter = () => {
+  const router = useRouter();
+  const pathname = usePathname();
   const {
     notifications,
     unreadCount,
@@ -29,6 +32,41 @@ export const NotificationCenter = () => {
     deleteNotification,
   } = useNotifications();
   const [isOpen, setIsOpen] = useState(false);
+
+  const handleNotificationClick = (notification: {
+    _id: string;
+    type?: string;
+    orderId?: string;
+    isRead: boolean;
+  }) => {
+    if (!notification.isRead) {
+      markAsRead(notification._id);
+    }
+
+    const orderId = String(notification.orderId ?? '');
+    if (!orderId) return;
+
+    const isTaskerPath = pathname.startsWith('/tasker');
+    const isChat = String(notification.type ?? '').toLowerCase() === 'chat_message';
+
+    setIsOpen(false);
+
+    if (isTaskerPath) {
+      if (isChat) {
+        router.push(`/tasker/dashboard?chat=true&orderId=${orderId}`);
+        return;
+      }
+      router.push('/tasker/dashboard');
+      return;
+    }
+
+    if (isChat) {
+      router.push(`/orders/${orderId}?chat=true`);
+      return;
+    }
+
+    router.push(`/orders/${orderId}`);
+  };
 
   const getNotificationIcon = (type?: string) => {
     switch (type) {
@@ -98,6 +136,7 @@ export const NotificationCenter = () => {
                 className={`p-3 border-b last:border-b-0 hover:bg-gray-50 transition-colors ${
                   !notification.isRead ? 'bg-blue-50' : ''
                 }`}
+                onClick={() => handleNotificationClick(notification)}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
@@ -126,7 +165,10 @@ export const NotificationCenter = () => {
                         size="sm"
                         variant="ghost"
                         className="h-6 w-6 p-0"
-                        onClick={() => markAsRead(notification._id)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          markAsRead(notification._id);
+                        }}
                         title="Đánh dấu đã đọc"
                       >
                         <Eye className="h-3 w-3" />
@@ -136,7 +178,10 @@ export const NotificationCenter = () => {
                       size="sm"
                       variant="ghost"
                       className="h-6 w-6 p-0"
-                      onClick={() => deleteNotification(notification._id)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        deleteNotification(notification._id);
+                      }}
                       title="Xóa"
                     >
                       <X className="h-3 w-3" />

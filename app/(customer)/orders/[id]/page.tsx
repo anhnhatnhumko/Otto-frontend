@@ -118,6 +118,7 @@ function OrderTrackingPageContent() {
     setOpen: setOverdueOpen,
     overdueInfo,
     showOverduePopup,
+    closePopupIfInvalid,
     handleKeepOrder,
     handleCancelOrder: handleCancelOrderTimeout,
     loading: overdueLoading,
@@ -228,17 +229,22 @@ function OrderTrackingPageContent() {
       setOrder(trackedOrder);
       setLastSyncedAt(new Date().toLocaleTimeString("vi-VN"));
 
-      // Hiển thị popup quá hạn nếu order là TIMEOUT
-      if (String(trackedOrder.status).toUpperCase() === "TIMEOUT" && !overdueOpen) {
+      const overdueWarningSentAt = (trackedOrder as any).overdueWarningSentAt;
+
+      // 🔥 Hiển thị popup quá hạn chỉ khi status = ASSIGNED và có cảnh báo
+      if (String(trackedOrder.status).toUpperCase() === "ASSIGNED" && Boolean(overdueWarningSentAt) && !overdueOpen) {
         showOverduePopup(trackedOrder);
       }
+
+      // 🔥 Đóng popup nếu order không còn trong trạng thái quá hạn
+      closePopupIfInvalid(trackedOrder);
     } catch (err) {
       console.error("FETCH ORDER ERROR:", err);
     } finally {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [orderId, overdueOpen, showOverduePopup]);
+  }, [orderId, overdueOpen, showOverduePopup, closePopupIfInvalid]);
 
   useEffect(() => {
     if (!orderId || orderId === "undefined") return;

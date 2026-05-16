@@ -57,5 +57,7 @@ export const mapOrder = (data: any) => {
       : undefined,
 
     cancelReason: data.cancelReason,
+
+    overdueWarningSentAt: data.overdueWarningSentAt || null,
   };
 };

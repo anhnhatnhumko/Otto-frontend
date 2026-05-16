@@ -1010,7 +1010,7 @@ const CustomerDashboard = () => {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>ID</TableHead>
+                          {/* <TableHead>ID</TableHead> */}
                           <TableHead>Dịch vụ</TableHead>
                           <TableHead>Ngày đặt</TableHead>
                           <TableHead>Giờ đặt</TableHead>
@@ -1037,13 +1037,13 @@ const CustomerDashboard = () => {
                               className="cursor-pointer hover:bg-muted/50"
                               onClick={() => openOrderDetail(order)}
                             >
-                              <TableCell className="font-mono text-xs">{order._id}</TableCell>
+                              {/* <TableCell className="font-mono text-xs">{order._id}</TableCell> */}
                               <TableCell>
                                 <div className="space-y-1">
                                   <p className="font-medium text-foreground">{order.service}</p>
                                   {order.tasker && (
                                     <p className="text-xs text-muted-foreground">
-                                      Tasker: {order.tasker.name}
+                                      {order.tasker.name}
                                     </p>
                                   )}
                                 </div>
@@ -1124,12 +1124,12 @@ const CustomerDashboard = () => {
                         <>
                           <OrderStateRenderer
                             order={selectedOrder as any}
-                            onCancel={() => handleCancelBooking(selectedOrder)}
+                            onCancel={canCancelOrder(selectedOrder) ? () => handleCancelBooking(selectedOrder) : undefined}
                           />
 
                           {!canCancelOrder(selectedOrder) && (
                             <p className="text-sm text-destructive text-center">
-                              Không thể hủy đơn trong vòng 1 tiếng trước giờ bắt đầu.
+                              Đơn này không thể hủy
                             </p>
                           )}
                         </>

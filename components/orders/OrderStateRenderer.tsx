@@ -7,6 +7,7 @@
   import TimeoutView from "./TimeoutView";
   import SearchingView from "./SearchingView";
   import { useRouter } from "next/navigation";
+import CompletedView from "./CompletedView";
 
   interface OrderStateRendererProps {
     order: Order;
@@ -74,14 +75,14 @@
             onCall={handlers.onCall}
           />
         );
-      // case "COMPLETED":
-      //   return (
-      //     <CompletedView
-      //       order={order}
-      //       onRate={handlers.onRate}
-      //       onRebook={handlers.onRebook}
-      //     />
-      //   );
+      case "COMPLETED":
+        return (
+          <CompletedView
+            order={order}
+            onRate={handlers.onRate}
+            onRebook={handlers.onRebook}
+          />
+        );
       case "TIMEOUT":
         return (
           <TimeoutView

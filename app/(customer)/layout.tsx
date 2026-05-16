@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import GlobalNotificationPopup from "@/components/customer/GlobalNotificationPopup";
 
 export default function CustomerLayout({
   children,
@@ -29,5 +30,13 @@ export default function CustomerLayout({
 
   if (!user || user.role !== "CUSTOMER") return null;
 
-  return <>{children}</>;
+  const userId = String(user?._id ?? user?.id ?? "");
+  const userRole = String(user?.role ?? "CUSTOMER");
+
+  return (
+    <>
+      {children}
+      <GlobalNotificationPopup userId={userId} role={userRole} />
+    </>
+  );
 }

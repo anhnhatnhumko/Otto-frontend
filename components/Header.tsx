@@ -126,9 +126,44 @@ const Header = () => {
         <button
           className="md:hidden p-2 rounded-lg hover:bg-muted transition-colors"
           onClick={() => setIsMenuOpen(!isMenuOpen)}
+          aria-expanded={isMenuOpen}
+          aria-label="Toggle menu"
         >
           {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
+
+        {isMenuOpen && (
+          <div className="md:hidden absolute top-full left-0 right-0 bg-card border-b border-border animate-fade-up">
+            <nav className="container py-4 flex flex-col gap-2">
+              {navLinks.map((link) => (
+                <Link
+                  key={link.path}
+                  href={link.path}
+                  className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                    isActive(link.path)
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-muted"
+                  }`}
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  {link.name}
+                </Link>
+              ))}
+              <div className="flex gap-2 mt-2 px-4">
+                <Link href="/login" className="flex-1" onClick={() => setIsMenuOpen(false)}>
+                  <Button variant="outline" className="w-full">
+                    Đăng nhập
+                  </Button>
+                </Link>
+                <Link href="/register" className="flex-1" onClick={() => setIsMenuOpen(false)}>
+                  <Button variant="hero" className="w-full">
+                    Đăng ký
+                  </Button>
+                </Link>
+              </div>
+            </nav>
+          </div>
+        )}
       </div>
     </header>
   );
