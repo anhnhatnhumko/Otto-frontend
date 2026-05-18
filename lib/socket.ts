@@ -56,6 +56,10 @@ export const connectSocket = (
     if (process.env.NODE_ENV === "development") {
       console.log("🟢 SOCKET CONNECTED:", socket?.id);
     }
+
+    if (String(role).toUpperCase() === "ADMIN") {
+      socket?.emit("admin:join", { role: "ADMIN" });
+    }
   });
 
   socket.on("disconnect", () => {

@@ -140,7 +140,7 @@ const Index = () => {
             <div className="space-y-6 animate-fade-up">
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-otto-primary-light text-primary text-sm font-medium">
                 <Sparkles size={16} />
-                <span>Nền tảng dịch vụ gia đình #1 Việt Nam</span>
+                <span>Nền tảng dịch vụ gia đình</span>
               </div>
 
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground leading-[1.2] ">
@@ -432,7 +432,6 @@ const Index = () => {
           </div>
         </div>
       </section>
-
       <Footer />
     </div>
   );

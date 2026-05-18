@@ -13,6 +13,8 @@ import {
   UserCog,
   Plus,
   X,
+  Briefcase,
+  FileText,
 } from "lucide-react";
 
 import {
@@ -22,6 +24,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +55,8 @@ import { AddTaskerFormDialog } from "../dialogs/AddTaskerFormDialog";
 import type { Tasker, Service } from "@/app/admin/dashboard/types";
 import { DataPagination } from "../ui/data-pagination";
 import { API_URL } from "@/app/admin/dashboard/constants";
+import { connectSocket } from "@/lib/socket";
+import { toast } from "@/hooks/use-toast";
 
 interface TaskersTabProps {
   taskers: Tasker[];
@@ -83,6 +94,11 @@ export function TaskersTab({
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isAddTaskerOpen, setIsAddTaskerOpen] = useState(false);
+  const [isListOpen, setIsListOpen] = useState(false);
+  const [requests, setRequests] = useState<any[]>([]);
+  const [unreadRequestIds, setUnreadRequestIds] = useState<Set<string>>(new Set());
+  const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
 
   // 🔥 PAGINATION STATE
   const [page, setPage] = useState(1);
@@ -147,6 +163,136 @@ export function TaskersTab({
   }, []);
 
   // ============================
+  // LOAD TASKER REQUESTS
+  // ============================
+
+  useEffect(() => {
+    const fetchRequests = async () => {
+      try {
+        const res = await fetch(`${API_URL}/admin/taskers/requests`);
+        if (res.ok) {
+          const json = await res.json();
+          const list = Array.isArray(json)
+            ? json
+            : Array.isArray(json?.data)
+              ? json.data
+              : [];
+          setRequests(list);
+        }
+      } catch (err) {
+        console.error("Load tasker requests failed", err);
+      }
+    };
+    void fetchRequests();
+  }, []);
+
+  // ============================
+  // REALTIME: listen for new tasker requests
+  // ============================
+  useEffect(() => {
+    try {
+      const socket = connectSocket('admin', 'ADMIN');
+
+      const handleCreated = (payload: any) => {
+        const item = payload?.data ?? payload;
+        if (!item) return;
+        const createdId = String(item?._id || item?.id || '').trim();
+        setRequests((prev) => {
+          if (prev.find((p) => String(p._id || p.id) === String(item._id || item.id))) {
+            return prev;
+          }
+          return [item, ...prev];
+        });
+        if (createdId) {
+          setUnreadRequestIds((prev) => {
+            const next = new Set(prev);
+            next.add(createdId);
+            return next;
+          });
+        }
+        try {
+          const who = item?.formData?.fullName ?? item?.formData?.email ?? item?.formData?.phone ?? "Người dùng";
+          toast({ title: "Yêu cầu đăng ký mới", description: `${who} vừa gửi yêu cầu đăng ký` });
+        } catch (e) {
+          // ignore toast errors
+        }
+      };
+
+      const handleUpdated = (payload: any) => {
+        const item = payload?.data ?? payload;
+        if (!item) return;
+        setRequests((prev) => {
+          const idKey = String(item._id || item.id);
+          const exists = prev.some((p) => String(p._id || p.id) === idKey);
+          if (!exists) {
+            return [item, ...prev];
+          }
+          return prev.map((p) => (String(p._id || p.id) === idKey ? item : p));
+        });
+
+        // if detail dialog is open for this item, update it too
+        setSelectedRequest((cur: any) => {
+          if (!cur) return cur;
+          const curId = String(cur._id || cur.id);
+          const newId = String(item._id || item.id);
+          return curId === newId ? item : cur;
+        });
+
+        try {
+          const who = item?.formData?.fullName ?? item?.formData?.email ?? item?.formData?.phone ?? "Người dùng";
+          const status = String(item?.status || "").toLowerCase();
+          if (status === "approved" || status === "approved") {
+            toast({ title: "Yêu cầu đã được duyệt", description: `${who} đã được duyệt.` });
+          } else {
+            toast({ title: "Yêu cầu được cập nhật", description: `${who} đã có cập nhật.` });
+          }
+        } catch (e) {
+          // ignore
+        }
+      };
+
+      const handleDeleted = (payload: any) => {
+        const id = String((payload && (payload.id || payload._id)) || payload);
+        if (!id) return;
+        setRequests((prev) => prev.filter((p) => String(p._id || p.id) !== id));
+        setUnreadRequestIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+        setSelectedRequest((cur: any) => (cur && String(cur._id || cur.id) === id ? null : cur));
+        try {
+          toast({ title: "Yêu cầu bị từ chối", description: "Một yêu cầu đăng ký đã bị từ chối và xóa." });
+        } catch (e) {
+          // ignore
+        }
+      };
+
+      socket.on('admin:tasker-request-created', handleCreated);
+      socket.on('admin:tasker-requests:created', handleCreated);
+      socket.on('admin:tasker-request-updated', handleUpdated);
+      socket.on('admin:tasker-requests:updated', handleUpdated);
+      socket.on('admin:tasker-request-deleted', handleDeleted);
+      socket.on('admin:tasker-requests:deleted', handleDeleted);
+
+      return () => {
+        try {
+          socket.off('admin:tasker-request-created', handleCreated);
+          socket.off('admin:tasker-requests:created', handleCreated);
+          socket.off('admin:tasker-request-updated', handleUpdated);
+          socket.off('admin:tasker-requests:updated', handleUpdated);
+          socket.off('admin:tasker-request-deleted', handleDeleted);
+          socket.off('admin:tasker-requests:deleted', handleDeleted);
+        } catch (e) {
+          // ignore
+        }
+      };
+    } catch (err) {
+      console.warn('Socket setup failed', err);
+    }
+  }, []);
+
+  // ============================
   // LOAD WARDS BY PROVINCE
   // ============================
 
@@ -172,11 +318,25 @@ export function TaskersTab({
     fetchWards();
   }, [provinceId]);
 
+  const openDetail = async (id: string) => {
+    try {
+      const res = await fetch(`${API_URL}/admin/taskers/requests/${id}`);
+      if (res.ok) {
+        const json = await res.json();
+        const item = json?.data ?? json;
+        setSelectedRequest(item);
+        setIsDetailOpen(true);
+      }
+    } catch (err) {
+      console.error("Load tasker request detail failed", err);
+    }
+  };
+
   return (
     <Card className="shadow-card">
       <CardHeader className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex items-center gap-3">
             <UserCog className="h-5 w-5" />
             Quản lý Tasker
           </CardTitle>
@@ -185,10 +345,32 @@ export function TaskersTab({
           </CardDescription>
         </div>
 
-        <Button onClick={() => setIsAddTaskerOpen(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Thêm Tasker
-        </Button>
+        {/* Tasker requests button */}
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Button
+              variant="outline"
+              className="hidden sm:flex text-xs gap-1.5"
+              onClick={() => {
+                setIsListOpen(true);
+                setUnreadRequestIds(new Set());
+              }}
+            >
+              <Briefcase className="h-4 w-4" />
+              Tasker
+            </Button>
+            {unreadRequestIds.size > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[11px] font-semibold px-1">
+                {unreadRequestIds.size > 99 ? '99+' : unreadRequestIds.size}
+              </span>
+            )}
+          </div>
+
+          <Button onClick={() => setIsAddTaskerOpen(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Thêm Tasker
+          </Button>
+        </div>
       </CardHeader>
 
       <CardContent className="space-y-4">
@@ -308,7 +490,9 @@ export function TaskersTab({
               <TableRow>
                 {/* <TableHead>Mã Tasker</TableHead> */}
                 <TableHead className="w-[25%]">Thông tin</TableHead>
-                <TableHead className="hidden md:table-cell w-[20%]">Dịch vụ</TableHead>
+                <TableHead className="hidden md:table-cell w-[20%]">
+                  Dịch vụ
+                </TableHead>
                 <TableHead className="text-center hidden sm:table-cell w-[15%]">
                   Đánh giá
                 </TableHead>
@@ -426,6 +610,184 @@ export function TaskersTab({
         services={services}
         onTaskerAdded={onRefresh}
       />
+
+      {/* Tasker Request Detail Dialog */}
+      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-blue-600" />
+              Hồ sơ đăng ký Tasker{" "}
+              {selectedRequest?.formData?.fullName
+                ? `- ${selectedRequest.formData.fullName}`
+                : ""}
+            </DialogTitle>
+            <DialogDescription>
+              Thông tin do Tasker gửi khi đăng ký
+              {selectedRequest?.createdAt && (
+                <>
+                  {" "}
+                  · Nộp lúc{" "}
+                  {new Date(selectedRequest.createdAt).toLocaleString("vi-VN")}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedRequest ? (
+            <div className="space-y-5">
+              <div>
+                <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                  <Briefcase className="h-4 w-4" /> Thông tin cá nhân
+                </h4>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Họ tên</p>
+                    <p className="font-medium">
+                      {selectedRequest?.formData?.fullName ?? "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Email</p>
+                    <p className="font-medium">
+                      {selectedRequest?.formData?.email ?? "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Số điện thoại</p>
+                    <p className="font-medium">
+                      {selectedRequest?.formData?.phone ?? "—"}
+                    </p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-muted-foreground">Quận/Huyện</p>
+                    <p className="font-medium">
+                      {selectedRequest?.formData?.district ?? "—"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                  <Briefcase className="h-4 w-4" /> Dịch vụ đăng ký
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {(selectedRequest.services || []).map(
+                    (s: string, i: number) => (
+                      <Badge key={i} variant="secondary">
+                        {s}
+                      </Badge>
+                    ),
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsDetailOpen(false)}
+                >
+                  Đóng
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="py-10 text-center text-sm text-muted-foreground">
+              Đang tải...
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Tasker Requests List Dialog */}
+      <Dialog open={isListOpen} onOpenChange={setIsListOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Briefcase className="h-5 w-5 text-blue-600" />
+              Danh sách yêu cầu đăng ký Tasker
+            </DialogTitle>
+            <DialogDescription>{requests.length} yêu cầu mới</DialogDescription>
+          </DialogHeader>
+
+          {requests.length === 0 ? (
+            <div className="py-10 text-center text-sm text-muted-foreground">
+              Chưa có yêu cầu đăng ký nào
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-[70vh] overflow-y-auto">
+              {requests.map((r) => (
+                <div
+                  key={r._id}
+                  className="flex items-center justify-between gap-3 rounded-lg border p-4 hover:bg-muted/50 cursor-pointer transition"
+                  onClick={() => {
+                    const id = String(r._id || r.id || '');
+                    if (id) {
+                      setUnreadRequestIds((prev) => {
+                        const next = new Set(prev);
+                        next.delete(id);
+                        return next;
+                      });
+                    }
+                    void openDetail(r._id);
+                    setIsListOpen(false);
+                  }}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm">
+                      {r.formData?.fullName ?? "(Không tên)"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {r.formData?.phone ?? r.formData?.email ?? "—"}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Quận/Huyện: {r.formData?.district ?? "—"}
+                    </p>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {(r.services || [])
+                        .slice(0, 3)
+                        .map((s: string, i: number) => (
+                          <Badge
+                            key={i}
+                            variant="secondary"
+                            className="text-xs"
+                          >
+                            {s}
+                          </Badge>
+                        ))}
+                      {(r.services || []).length > 3 && (
+                        <Badge variant="secondary" className="text-xs">
+                          +{(r.services || []).length - 3}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <Badge
+                      className={
+                        r.status === "pending"
+                          ? "bg-yellow-600"
+                          : "bg-green-600"
+                      }
+                    >
+                      {r.status === "pending" ? "Chờ duyệt" : "Đã duyệt"}
+                    </Badge>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {new Date(r.createdAt).toLocaleDateString("vi-VN")}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-3 border-t">
+            <Button variant="outline" onClick={() => setIsListOpen(false)}>
+              Đóng
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
