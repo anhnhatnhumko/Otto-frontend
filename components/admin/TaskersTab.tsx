@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Search,
   Eye,
@@ -57,6 +57,7 @@ import { DataPagination } from "../ui/data-pagination";
 import { API_URL } from "@/app/admin/dashboard/constants";
 import { connectSocket } from "@/lib/socket";
 import { toast } from "@/hooks/use-toast";
+import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
 
 interface TaskersTabProps {
   taskers: Tasker[];
@@ -96,7 +97,7 @@ export function TaskersTab({
   const [isAddTaskerOpen, setIsAddTaskerOpen] = useState(false);
   const [isListOpen, setIsListOpen] = useState(false);
   const [requests, setRequests] = useState<any[]>([]);
-  const [unreadRequestIds, setUnreadRequestIds] = useState<Set<string>>(new Set());
+  const { unreadIds: unreadRequestIds, setUnreadRequestIds, addUnread, removeUnread } = useUnreadNotifications('tasker_requests');
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
 
@@ -107,6 +108,10 @@ export function TaskersTab({
   const pendingCount = taskers.filter((t) => t.status === "pending").length;
   const hasActiveFilters =
     statusFilter !== "all" || provinceId !== "all" || wardId !== "all";
+  const hasLoadedRequestsRef = useRef(false);
+  const pendingNewIdsRef = useRef<Set<string>>(new Set());
+  const seenStorageKey = "seen_notifications_tasker_requests";
+  const seenIdsRef = useRef<Set<string>>(new Set());
 
   // ================= FILTER =================
   // const filtered = taskers.filter((t) => {
@@ -167,6 +172,18 @@ export function TaskersTab({
   // ============================
 
   useEffect(() => {
+    try {
+      const raw = localStorage.getItem(seenStorageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          seenIdsRef.current = new Set(parsed.map((v: any) => String(v).trim()).filter(Boolean));
+        }
+      }
+    } catch (err) {
+      // ignore
+    }
+
     const fetchRequests = async () => {
       try {
         const res = await fetch(`${API_URL}/admin/taskers/requests`);
@@ -177,13 +194,67 @@ export function TaskersTab({
             : Array.isArray(json?.data)
               ? json.data
               : [];
-          setRequests(list);
+          const idsToMarkUnread: string[] = [];
+          setRequests((prev) => {
+            if (hasLoadedRequestsRef.current) {
+              const prevIds = new Set(prev.map((item) => String(item._id || item.id || "")));
+              list.forEach((item: any) => {
+                const id = String(item?._id || item?.id || "").trim();
+                if (id && !prevIds.has(id)) {
+                  if (!seenIdsRef.current.has(id) && !unreadRequestIds.has(id)) {
+                    idsToMarkUnread.push(id);
+                  }
+                  seenIdsRef.current.add(id);
+                }
+              });
+              try {
+                localStorage.setItem(seenStorageKey, JSON.stringify(Array.from(seenIdsRef.current)));
+              } catch (err) {}
+            } else {
+              hasLoadedRequestsRef.current = true;
+              try {
+                const ids = list.map((it: any) => String(it?._id || it?.id || "").trim()).filter(Boolean);
+                seenIdsRef.current = new Set(ids);
+                localStorage.setItem(seenStorageKey, JSON.stringify(Array.from(seenIdsRef.current)));
+              } catch (err) {}
+
+              try {
+                pendingNewIdsRef.current.forEach((id) => {
+                  if (id && !seenIdsRef.current.has(id) && !unreadRequestIds.has(id)) {
+                    idsToMarkUnread.push(id);
+                  }
+                  seenIdsRef.current.add(id);
+                });
+              } finally {
+                try {
+                  localStorage.setItem(seenStorageKey, JSON.stringify(Array.from(seenIdsRef.current)));
+                } catch (err) {}
+                pendingNewIdsRef.current.clear();
+              }
+            }
+
+            return list;
+          });
+
+          if (idsToMarkUnread.length > 0) {
+            window.setTimeout(() => {
+              idsToMarkUnread.forEach((id) => addUnread(id));
+            }, 0);
+          }
         }
       } catch (err) {
         console.error("Load tasker requests failed", err);
       }
     };
     void fetchRequests();
+
+    const timer = window.setInterval(() => {
+      void fetchRequests();
+    }, 5000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
   }, []);
 
   // ============================
@@ -204,11 +275,17 @@ export function TaskersTab({
           return [item, ...prev];
         });
         if (createdId) {
-          setUnreadRequestIds((prev) => {
-            const next = new Set(prev);
-            next.add(createdId);
-            return next;
-          });
+          if (hasLoadedRequestsRef.current) {
+            if (!unreadRequestIds.has(createdId)) {
+              addUnread(createdId);
+            }
+            seenIdsRef.current.add(createdId);
+            try {
+              localStorage.setItem(seenStorageKey, JSON.stringify(Array.from(seenIdsRef.current)));
+            } catch (err) {}
+          } else {
+            pendingNewIdsRef.current.add(createdId);
+          }
         }
         try {
           const who = item?.formData?.fullName ?? item?.formData?.email ?? item?.formData?.phone ?? "Người dùng";
@@ -255,11 +332,11 @@ export function TaskersTab({
         const id = String((payload && (payload.id || payload._id)) || payload);
         if (!id) return;
         setRequests((prev) => prev.filter((p) => String(p._id || p.id) !== id));
-        setUnreadRequestIds((prev) => {
-          const next = new Set(prev);
-          next.delete(id);
-          return next;
-        });
+        removeUnread(id);
+        try {
+          seenIdsRef.current.add(id);
+          localStorage.setItem(seenStorageKey, JSON.stringify(Array.from(seenIdsRef.current)));
+        } catch (err) {}
         setSelectedRequest((cur: any) => (cur && String(cur._id || cur.id) === id ? null : cur));
         try {
           toast({ title: "Yêu cầu bị từ chối", description: "Một yêu cầu đăng ký đã bị từ chối và xóa." });
@@ -318,6 +395,20 @@ export function TaskersTab({
     fetchWards();
   }, [provinceId]);
 
+  const isUnreadRequest = (request: any) => {
+    const id = String(request?._id || request?.id || '').trim();
+    return Boolean(id && unreadRequestIds.has(id));
+  };
+
+  const markAsSeen = (id: string) => {
+    try {
+      seenIdsRef.current.add(id);
+      localStorage.setItem(seenStorageKey, JSON.stringify(Array.from(seenIdsRef.current)));
+    } catch (err) {
+      // ignore
+    }
+  };
+
   const openDetail = async (id: string) => {
     try {
       const res = await fetch(`${API_URL}/admin/taskers/requests/${id}`);
@@ -353,7 +444,6 @@ export function TaskersTab({
               className="hidden sm:flex text-xs gap-1.5"
               onClick={() => {
                 setIsListOpen(true);
-                setUnreadRequestIds(new Set());
               }}
             >
               <Briefcase className="h-4 w-4" />
@@ -659,9 +749,9 @@ export function TaskersTab({
                     </p>
                   </div>
                   <div className="col-span-2">
-                    <p className="text-muted-foreground">Quận/Huyện</p>
+                    <p className="text-muted-foreground">Địa chỉ</p>
                     <p className="font-medium">
-                      {selectedRequest?.formData?.district ?? "—"}
+                      {selectedRequest?.formData?.district ?? "—"}{selectedRequest?.formData?.city ? `, ${selectedRequest.formData.city}` : ""}
                     </p>
                   </div>
                 </div>
@@ -707,7 +797,7 @@ export function TaskersTab({
               <Briefcase className="h-5 w-5 text-blue-600" />
               Danh sách yêu cầu đăng ký Tasker
             </DialogTitle>
-            <DialogDescription>{requests.length} yêu cầu mới</DialogDescription>
+            <DialogDescription>{requests.length} yêu cầu</DialogDescription>
           </DialogHeader>
 
           {requests.length === 0 ? (
@@ -716,18 +806,17 @@ export function TaskersTab({
             </div>
           ) : (
             <div className="space-y-3 max-h-[70vh] overflow-y-auto">
-              {requests.map((r) => (
+              {requests.map((r) => {
+                const unread = isUnreadRequest(r);
+                return (
                 <div
                   key={r._id}
-                  className="flex items-center justify-between gap-3 rounded-lg border p-4 hover:bg-muted/50 cursor-pointer transition"
+                  className={`flex items-center justify-between gap-3 rounded-lg border p-4 hover:bg-sky-50 focus:bg-sky-50 data-[highlighted]:bg-sky-50 cursor-pointer transition ${unread ? 'bg-sky-50 border-sky-300' : 'bg-sky-50/60 opacity-85'}`}
                   onClick={() => {
                     const id = String(r._id || r.id || '');
                     if (id) {
-                      setUnreadRequestIds((prev) => {
-                        const next = new Set(prev);
-                        next.delete(id);
-                        return next;
-                      });
+                      removeUnread(id);
+                      markAsSeen(id);
                     }
                     void openDetail(r._id);
                     setIsListOpen(false);
@@ -741,7 +830,7 @@ export function TaskersTab({
                       {r.formData?.phone ?? r.formData?.email ?? "—"}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Quận/Huyện: {r.formData?.district ?? "—"}
+                      Địa chỉ: {r.formData?.district ?? "—"}{r.formData?.city ? ` • Thành phố: ${r.formData.city}` : ""}
                     </p>
                     <div className="flex flex-wrap gap-1 mt-2">
                       {(r.services || [])
@@ -772,12 +861,18 @@ export function TaskersTab({
                     >
                       {r.status === "pending" ? "Chờ duyệt" : "Đã duyệt"}
                     </Badge>
+                    <div className="mt-2 flex justify-end">
+                      <Badge variant="secondary" className={`text-[10px] h-5 px-1.5 ${unread ? 'bg-sky-100 text-sky-700 border-sky-200' : 'bg-sky-50 text-sky-600 border-sky-100'}`}>
+                        {unread ? 'Mới' : 'Đã đọc'}
+                      </Badge>
+                    </div>
                     <p className="text-xs text-muted-foreground mt-2">
                       {new Date(r.createdAt).toLocaleDateString("vi-VN")}
                     </p>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
 

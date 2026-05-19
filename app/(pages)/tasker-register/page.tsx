@@ -67,6 +67,10 @@ const TaskerRegister = () => {
   const [selectedProvinceId, setSelectedProvinceId] = useState("");
   const [selectedDistrictId, setSelectedDistrictId] = useState("");
   const [isCheckingContact, setIsCheckingContact] = useState(false);
+  const [contactErrors, setContactErrors] = useState({
+    email: "",
+    phone: "",
+  });
 
   // Load real services from API (fall back to static list)
   useEffect(() => {
@@ -127,10 +131,31 @@ const TaskerRegister = () => {
   };
 
   const checkContactRegistered = async (input?: { email?: string; phone?: string }) => {
+    const result = await getContactCheckResult(input);
+    if (!result) return false;
+
+    const { emailExists, phoneExists } = result;
+    if (emailExists || phoneExists) {
+      const messages: string[] = [];
+      if (emailExists) messages.push('Email đã được đăng ký');
+      if (phoneExists) messages.push('Số điện thoại đã được đăng ký');
+
+      toast({
+        variant: 'destructive',
+        title: 'Thông tin đã tồn tại',
+        description: `${messages.join(' và ')}. Vui lòng dùng thông tin khác.`,
+      });
+      return true;
+    }
+
+    return false;
+  };
+
+  const getContactCheckResult = async (input?: { email?: string; phone?: string }) => {
     const email = String(input?.email ?? formData.email ?? '').trim();
     const phone = String(input?.phone ?? formData.phone ?? '').trim().replace(/\s+/g, '');
 
-    if (!email && !phone) return false;
+    if (!email && !phone) return null;
 
     setIsCheckingContact(true);
     try {
@@ -140,30 +165,17 @@ const TaskerRegister = () => {
       if (phone) query.set('phone', phone);
 
       const res = await fetch(`${API_URL}/admin/taskers/requests/check-contact?${query.toString()}`);
-      if (!res.ok) return false;
+      if (!res.ok) return null;
 
       const json = await res.json();
       const data = json?.data ?? {};
       const emailExists = Boolean(data.emailExists);
       const phoneExists = Boolean(data.phoneExists);
 
-      if (emailExists || phoneExists) {
-        const messages: string[] = [];
-        if (emailExists) messages.push('Email đã được đăng ký');
-        if (phoneExists) messages.push('Số điện thoại đã được đăng ký');
-
-        toast({
-          variant: 'destructive',
-          title: 'Thông tin đã tồn tại',
-          description: `${messages.join(' và ')}. Vui lòng dùng thông tin khác.`,
-        });
-        return true;
-      }
-
-      return false;
+      return { emailExists, phoneExists };
     } catch (err) {
       console.error('Lỗi kiểm tra email/số điện thoại:', err);
-      return false;
+      return null;
     } finally {
       setIsCheckingContact(false);
     }
@@ -182,12 +194,50 @@ const TaskerRegister = () => {
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+
+    if (name === "email" || name === "phone") {
+      setContactErrors((prev) => ({
+        ...prev,
+        [name]: "",
+      }));
+    }
+  };
+
+  const applyContactErrors = (result: { emailExists: boolean; phoneExists: boolean } | null, input?: { email?: string; phone?: string }) => {
+    const email = String(input?.email ?? formData.email ?? "").trim();
+    const phone = String(input?.phone ?? formData.phone ?? "").trim().replace(/\s+/g, "");
+
+    if (!result) return false;
+
+    const nextErrors = {
+      email: result.emailExists && email ? "Email đã được đăng ký" : "",
+      phone: result.phoneExists && phone ? "Số điện thoại đã được đăng ký" : "",
+    };
+
+    setContactErrors(nextErrors);
+    return result.emailExists || result.phoneExists;
+  };
+
+  const validateContactAndShowInlineErrors = async (input?: { email?: string; phone?: string }) => {
+    const result = await getContactCheckResult(input);
+    if (!result) return false;
+    return applyContactErrors(result, input);
   };
 
   const handleSubmit = async () => {
     try {
-      const duplicated = await checkContactRegistered();
-      if (duplicated) return;
+      const contactStatus = await getContactCheckResult();
+      if (contactStatus?.emailExists || contactStatus?.phoneExists) {
+        applyContactErrors(contactStatus);
+        const errorParam = contactStatus.emailExists
+          ? 'email_exists'
+          : contactStatus.phoneExists
+            ? 'phone_exists'
+            : 'duplicate_contact';
+
+        router.push(`/tasker-register/success?status=error&error=${errorParam}`);
+        return;
+      }
 
       const API_URL = requireApiUrl();
       const payload = {
@@ -207,14 +257,22 @@ const TaskerRegister = () => {
 
       if (!res.ok) throw new Error('Không thể gửi đăng ký');
 
-      toast({
-        title: 'Đăng ký thành công!',
-        description: 'Hồ sơ của bạn đang được xét duyệt. Chúng tôi sẽ liên hệ trong 24-48h.',
+      // Redirect to success page with user info
+      const params = new URLSearchParams({
+        status: 'success',
+        name: formData.fullName || '',
+        email: formData.email || '',
+        phone: formData.phone || '',
       });
 
-      router.push('/');
+      router.push(`/tasker-register/success?${params.toString()}`);
     } catch (err) {
-      toast({ variant: 'destructive', title: 'Lỗi', description: String(err) });
+      toast({ 
+        variant: 'destructive', 
+        title: 'Lỗi', 
+        description: String(err) 
+      });
+      router.push(`/tasker-register/success?status=error&error=submission_failed`);
     }
   };
 
@@ -243,7 +301,7 @@ const TaskerRegister = () => {
           return;
         }
 
-        const dup = await checkContactRegistered();
+        const dup = await validateContactAndShowInlineErrors();
         if (dup) return;
       }
 
@@ -420,13 +478,16 @@ const TaskerRegister = () => {
                         onChange={handleInputChange}
                         onBlur={() => {
                           if (formData.phone?.trim()) {
-                            void checkContactRegistered({ phone: formData.phone });
+                            void validateContactAndShowInlineErrors({ phone: formData.phone });
                           }
                         }}
                         placeholder="0912 345 678"
-                        className="pl-10 h-12"
+                        className={`pl-10 h-12 ${contactErrors.phone ? "border-destructive focus-visible:ring-destructive" : ""}`}
                       />
                     </div>
+                    {contactErrors.phone && (
+                      <p className="text-sm text-destructive">{contactErrors.phone}</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -441,13 +502,16 @@ const TaskerRegister = () => {
                         onChange={handleInputChange}
                         onBlur={() => {
                           if (formData.email?.trim()) {
-                            void checkContactRegistered({ email: formData.email });
+                            void validateContactAndShowInlineErrors({ email: formData.email });
                           }
                         }}
                         placeholder="email@example.com"
-                        className="pl-10 h-12"
+                        className={`pl-10 h-12 ${contactErrors.email ? "border-destructive focus-visible:ring-destructive" : ""}`}
                       />
                     </div>
+                    {contactErrors.email && (
+                      <p className="text-sm text-destructive">{contactErrors.email}</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -500,7 +564,7 @@ const TaskerRegister = () => {
                   </div>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="district">Quận/Huyện *</Label>
+                    <Label htmlFor="district">Địa chỉ *</Label>
                     <Select
                       value={selectedDistrictId || ''}
                       onValueChange={(value) => handleDistrictChange(value)}
@@ -639,6 +703,18 @@ const TaskerRegister = () => {
                           {formData.district && formData.city
                             ? `${formData.district}, ${formData.city}`
                             : "Chưa điền"}
+                        </span>
+                      </div>
+                      <div className="md:col-span-2">
+                        <span className="text-muted-foreground">Kinh nghiệm làm việc:</span>{" "}
+                        <span className="text-foreground whitespace-pre-wrap">
+                          {formData.experience?.trim() || "Chưa điền"}
+                        </span>
+                      </div>
+                      <div className="md:col-span-2">
+                        <span className="text-muted-foreground">Giới thiệu bản thân:</span>{" "}
+                        <span className="text-foreground whitespace-pre-wrap">
+                          {formData.introduction?.trim() || "Chưa điền"}
                         </span>
                       </div>
                     </div>

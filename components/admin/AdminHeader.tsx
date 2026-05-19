@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -29,6 +29,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 import { useLogout } from "@/hooks/useLogout";
+import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
 import { connectSocket } from "@/lib/socket";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { requireApiUrl } from "@/lib/api-url";
@@ -39,6 +40,11 @@ import { requireApiUrl } from "@/lib/api-url";
 const AdminHeader = () => {
     const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [requests, setRequests] = useState<any[]>([]);
+  const { unreadIds: unreadRequestIds, addUnread, removeUnread, clearUnread } = useUnreadNotifications('admin_notifications');
+  const hasLoadedRequestsRef = useRef(false);
+  const pendingNewIdsRef = useRef<Set<string>>(new Set());
+  const seenStorageKey = `seen_notifications_admin_notifications`;
+  const seenIdsRef = useRef<Set<string>>(new Set());
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isListOpen, setIsListOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
@@ -47,6 +53,18 @@ const AdminHeader = () => {
   const API_URL = requireApiUrl();
 
   useEffect(() => {
+    // Load persisted seen IDs so we don't treat already-seen items as new on reload
+    try {
+      const raw = localStorage.getItem(seenStorageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          seenIdsRef.current = new Set(parsed.map((v: any) => String(v).trim()).filter(Boolean));
+        }
+      }
+    } catch (err) {
+      // ignore
+    }
     // connect as ADMIN to receive admin events
     try {
       const socket = connectSocket("admin", "ADMIN");
@@ -56,7 +74,26 @@ const AdminHeader = () => {
         try {
           const candidate = payload && payload._id ? payload : payload && payload.data ? payload.data : payload;
           if (candidate && candidate._id) {
-            setRequests((r) => Array.isArray(r) ? [candidate, ...r] : [candidate]);
+            setRequests((r) => {
+              const arr = Array.isArray(r) ? r : [];
+              const id = String(candidate._id || candidate.id || '').trim();
+              const exists = arr.some((it: any) => String(it._id || it.id || '') === id);
+              if (exists) return arr;
+              return [candidate, ...arr];
+            });
+            const createdId = String(candidate._id || candidate.id || '').trim();
+            if (createdId) {
+              // If we've completed the initial load, mark it unread immediately.
+              // If not, stash it and let the initial fetch process pending ids to avoid
+              // re-marking already-read items on reload when socket may replay existing items.
+              if (hasLoadedRequestsRef.current) {
+                if (!unreadRequestIds.has(createdId)) {
+                  addUnread(createdId);
+                }
+              } else {
+                pendingNewIdsRef.current.add(createdId);
+              }
+            }
             return;
           }
         } catch (err) {
@@ -67,13 +104,30 @@ const AdminHeader = () => {
         void fetchList();
       };
 
-      socket.on("admin:new-tasker-request", handleNew);
+      const handleDeleted = (payload: any) => {
+        const id = String((payload && (payload.id || payload._id)) || payload);
+        if (!id) return;
+        setRequests((prev) => prev.filter((p) => String(p._id || p.id) !== id));
+        removeUnread(id);
+        // also mark as seen so it won't be considered new later
+        try {
+          seenIdsRef.current.add(id);
+          localStorage.setItem(seenStorageKey, JSON.stringify(Array.from(seenIdsRef.current)));
+        } catch (err) {}
+      };
 
-      // initial load
-      void fetchList();
+      socket.on("admin:new-tasker-request", handleNew);
+      socket.on("admin:tasker-request-created", handleNew);
+      socket.on("admin:tasker-requests:created", handleNew);
+      socket.on("admin:tasker-request-deleted", handleDeleted);
+      socket.on("admin:tasker-requests:deleted", handleDeleted);
 
       return () => {
         socket.off("admin:new-tasker-request", handleNew);
+        socket.off("admin:tasker-request-created", handleNew);
+        socket.off("admin:tasker-requests:created", handleNew);
+        socket.off("admin:tasker-request-deleted", handleDeleted);
+        socket.off("admin:tasker-requests:deleted", handleDeleted);
       };
     } catch (err) {
       console.error("Admin socket init failed", err);
@@ -92,12 +146,72 @@ const AdminHeader = () => {
           : Array.isArray(json?.data)
           ? json.data
           : [];
-        setRequests(list);
+        const idsToMarkUnread: string[] = [];
+        setRequests((prev) => {
+          if (hasLoadedRequestsRef.current) {
+            const prevIds = new Set(prev.map((item) => String(item._id || item.id || "")));
+            list.forEach((item: any) => {
+              const id = String(item?._id || item?.id || "").trim();
+              if (id && !prevIds.has(id)) {
+                // Only mark as unread if this id hasn't been seen before and isn't already unread
+                if (!seenIdsRef.current.has(id) && !unreadRequestIds.has(id)) {
+                  idsToMarkUnread.push(id);
+                }
+                seenIdsRef.current.add(id);
+              }
+            });
+            try {
+              localStorage.setItem(seenStorageKey, JSON.stringify(Array.from(seenIdsRef.current)));
+            } catch (err) {}
+          } else {
+            hasLoadedRequestsRef.current = true;
+            // populate seen ids from initial list
+            try {
+              const ids = list.map((it: any) => String(it?._id || it?.id || '').trim()).filter(Boolean);
+              seenIdsRef.current = new Set(ids);
+              localStorage.setItem(seenStorageKey, JSON.stringify(Array.from(seenIdsRef.current)));
+            } catch (err) {}
+
+            // Process any pending new ids that arrived via socket before initial load
+            try {
+              pendingNewIdsRef.current.forEach((id) => {
+                if (id && !seenIdsRef.current.has(id) && !unreadRequestIds.has(id)) {
+                  idsToMarkUnread.push(id);
+                }
+                seenIdsRef.current.add(id);
+              });
+            } finally {
+              try {
+                localStorage.setItem(seenStorageKey, JSON.stringify(Array.from(seenIdsRef.current)));
+              } catch (err) {}
+              pendingNewIdsRef.current.clear();
+            }
+          }
+
+          return list;
+        });
+
+        if (idsToMarkUnread.length > 0) {
+          window.setTimeout(() => {
+            idsToMarkUnread.forEach((id) => addUnread(id));
+          }, 0);
+        }
       }
     } catch (err) {
       console.error("Load admin tasker requests failed", err);
     }
   };
+
+  useEffect(() => {
+    void fetchList();
+    const timer = window.setInterval(() => {
+      void fetchList();
+    }, 5000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, []);
 
   const openDetail = async (id: string) => {
     if (!API_URL) return;
@@ -112,6 +226,10 @@ const AdminHeader = () => {
     } catch (err) {
       console.error("Load tasker request detail failed", err);
     }
+  };
+  const isUnreadRequest = (request: any) => {
+    const id = String(request?._id || request?.id || '').trim();
+    return Boolean(id && unreadRequestIds.has(id));
   };
     const handleLogout = async () => {
         try {
@@ -172,11 +290,16 @@ const AdminHeader = () => {
           {/* Notifications - dynamic admin tasker requests */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="relative"
+                aria-label="Thông báo"
+              >
                 <Bell className="h-5 w-5" />
-                {requests.length > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
-                    {requests.length}
+                {unreadRequestIds.size > 0 && (
+                  <span className="absolute top-0 right-0 inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold">
+                    {unreadRequestIds.size > 99 ? '99+' : unreadRequestIds.size}
                   </span>
                 )}
               </Button>
@@ -185,24 +308,58 @@ const AdminHeader = () => {
               <DropdownMenuLabel className="flex items-center justify-between">
                 <span>Thông báo</span>
                 <Badge variant="secondary" className="text-xs">
-                  {requests.length} mới
+                  {unreadRequestIds.size} mới
                 </Badge>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               {requests.length === 0 ? (
                 <DropdownMenuItem className="py-3 text-muted-foreground">Không có thông báo mới</DropdownMenuItem>
               ) : (
-                requests.slice(0, 6).map((r) => (
-                  <DropdownMenuItem key={r._id} className="flex flex-col items-start gap-1 py-3 cursor-pointer" onClick={() => void openDetail(r._id)}>
-                    <span className="text-sm font-medium">{r.formData?.fullName ?? "(Không tên)"}</span>
+                requests.slice(0, 6).map((r) => {
+                  const unread = isUnreadRequest(r);
+                  return (
+                  <DropdownMenuItem 
+                    key={r._id} 
+                    className={`flex flex-col items-start gap-1 py-3 cursor-pointer transition-colors hover:bg-sky-50 focus:bg-sky-50 data-[highlighted]:bg-sky-50 ${unread ? 'bg-sky-50 border-l-2 border-l-sky-400' : 'bg-sky-50/70 opacity-85'}`} 
+                    onClick={() => {
+                      const id = String(r._id || r.id || '');
+                      if (id) {
+                        removeUnread(id);
+                        try {
+                          seenIdsRef.current.add(id);
+                          localStorage.setItem(seenStorageKey, JSON.stringify(Array.from(seenIdsRef.current)));
+                        } catch (err) {}
+                      }
+                      void openDetail(r._id);
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm ${unread ? 'font-semibold text-foreground' : 'font-medium text-muted-foreground'}`}>{r.formData?.fullName ?? "(Không tên)"}</span>
+                      <Badge variant="secondary" className={`text-[10px] h-5 px-1.5 ${unread ? 'bg-sky-100 text-sky-700 border-sky-200' : 'bg-sky-50 text-sky-600 border-sky-100'}`}>
+                        {unread ? 'Mới' : 'Đã đọc'}
+                      </Badge>
+                    </div>
                     <span className="text-xs text-muted-foreground">{r.formData?.phone ?? r.formData?.email ?? "Thông tin liên hệ"}</span>
                     <span className="text-[10px] text-muted-foreground">{new Date(r.createdAt).toLocaleString("vi-VN")}</span>
                   </DropdownMenuItem>
-                ))
+                  );
+                })
               )}
 
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="justify-center text-primary cursor-pointer" onClick={() => setIsListOpen(true)}>
+              <DropdownMenuItem 
+                className="justify-center text-primary cursor-pointer" 
+                onClick={() => {
+                  clearUnread();
+                  try {
+                    // mark all current requests as seen so they don't reappear as new after reload
+                    const ids = requests.map((it) => String(it._id || it.id || '').trim()).filter(Boolean);
+                    ids.forEach((id) => seenIdsRef.current.add(id));
+                    localStorage.setItem(seenStorageKey, JSON.stringify(Array.from(seenIdsRef.current)));
+                  } catch (err) {}
+                  setIsListOpen(true);
+                }}
+              >
                 Xem tất cả
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -348,7 +505,7 @@ const AdminHeader = () => {
                   <div><p className="text-muted-foreground">Họ tên</p><p className="font-medium">{selectedRequest?.formData?.fullName ?? "—"}</p></div>
                   <div><p className="text-muted-foreground">Email</p><p className="font-medium">{selectedRequest?.formData?.email ?? "—"}</p></div>
                   <div><p className="text-muted-foreground">Số điện thoại</p><p className="font-medium">{selectedRequest?.formData?.phone ?? "—"}</p></div>
-                  <div className="col-span-2"><p className="text-muted-foreground">Quận/Huyện</p><p className="font-medium">{selectedRequest?.formData?.district ?? "—"}</p></div>
+                  <div className="col-span-2"><p className="text-muted-foreground">Địa chỉ</p><p className="font-medium">{selectedRequest?.formData?.district ?? "—"}{selectedRequest?.formData?.city ? `, ${selectedRequest.formData.city}` : ""}</p></div>
                 </div>
               </div>
 
@@ -384,7 +541,7 @@ const AdminHeader = () => {
               Danh sách yêu cầu đăng ký Tasker
             </DialogTitle>
             <DialogDescription>
-              {requests.length} yêu cầu mới
+              {requests.length} yêu cầu
             </DialogDescription>
           </DialogHeader>
 
@@ -394,11 +551,17 @@ const AdminHeader = () => {
             </div>
           ) : (
             <div className="space-y-3 max-h-[70vh] overflow-y-auto">
-              {requests.map((r) => (
+              {requests.map((r) => {
+                const unread = isUnreadRequest(r);
+                return (
                 <div
                   key={r._id}
-                  className="flex items-center justify-between gap-3 rounded-lg border p-4 hover:bg-muted/50 cursor-pointer transition"
+                  className={`flex items-center justify-between gap-3 rounded-lg border p-4 hover:bg-sky-50 focus:bg-sky-50 data-[highlighted]:bg-sky-50 cursor-pointer transition ${unread ? 'bg-sky-50 border-sky-300' : 'bg-sky-50/60 opacity-85'}`}
                   onClick={() => {
+                    const id = String(r._id || r.id || '');
+                    if (id) {
+                      removeUnread(id);
+                    }
                     void openDetail(r._id);
                     setIsListOpen(false);
                   }}
@@ -407,7 +570,7 @@ const AdminHeader = () => {
                     <p className="font-medium text-sm">{r.formData?.fullName ?? "(Không tên)"}</p>
                     <p className="text-xs text-muted-foreground">{r.formData?.phone ?? r.formData?.email ?? "—"}</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Quận/Huyện: {r.formData?.district ?? "—"}
+                      Địa chỉ: {r.formData?.district ?? "—"}{r.formData?.city ? ` • Thành phố: ${r.formData.city}` : ""}
                     </p>
                     <div className="flex flex-wrap gap-1 mt-2">
                       {(r.services || []).slice(0, 3).map((s: string, i: number) => (
@@ -422,12 +585,18 @@ const AdminHeader = () => {
                     <Badge className={r.status === 'pending' ? 'bg-yellow-600' : 'bg-green-600'}>
                       {r.status === 'pending' ? 'Chờ duyệt' : 'Đã duyệt'}
                     </Badge>
+                    <div className="mt-2 flex justify-end">
+                      <Badge variant="secondary" className={`text-[10px] h-5 px-1.5 ${unread ? 'bg-sky-100 text-sky-700 border-sky-200' : 'bg-sky-50 text-sky-600 border-sky-100'}`}>
+                        {unread ? 'Mới' : 'Đã đọc'}
+                      </Badge>
+                    </div>
                     <p className="text-xs text-muted-foreground mt-2">
                       {new Date(r.createdAt).toLocaleDateString("vi-VN")}
                     </p>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
