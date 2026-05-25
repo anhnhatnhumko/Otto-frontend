@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,25 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { AlertCircle, CheckCircle2, AlertTriangle } from "lucide-react";
 
 export default function TaskerRegisterSuccessPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+          <Card className="w-full max-w-md">
+            <CardContent className="py-12 text-center">
+              <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Đang xử lý...</p>
+            </CardContent>
+          </Card>
+        </div>
+      }
+    >
+      <TaskerRegisterSuccessContent />
+    </Suspense>
+  );
+}
+
+function TaskerRegisterSuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<"success" | "error" | "loading">("loading");
