@@ -11,26 +11,35 @@ export function removeAuthToken() {
 }
 
 export async function login(data: any) {
-  const API_URL = requireApiUrl();
-
-  const res = await fetch(`${API_URL}/auth/login`, {
+  // Use server-side proxy so the backend's Set-Cookie can be forwarded to frontend domain
+  const res = await fetch(`/api/auth/login`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(data),
-    credentials: "include", // ⭐ BẮT BUỘC
   });
 
   if (!res.ok) {
-    throw new Error("Login failed");
+    const t = await res.text().catch(() => "");
+    throw new Error(t || "Login failed");
   }
 
   return res.json();
 }
 
-export function logoutApi() {
-  return apiPost("/auth/logout", {});
+export async function logoutApi() {
+  const res = await fetch(`/api/auth/logout`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(t || "Logout failed");
+  }
+
+  return res.json();
 }
 
 export function register(payload: {
@@ -45,14 +54,11 @@ export function register(payload: {
 }
 
 export async function getMe(token: string) {
-  const API_URL = requireApiUrl();
-
-  const res = await fetch(
-    `${API_URL}/auth/me`,
-    {
-      credentials: "include",
-    }
-  );
+  // Use server-side proxy route
+  const res = await fetch(`/api/auth/me`, {
+    credentials: "include",
+    cache: "no-store",
+  });
 
   if (!res.ok) {
     throw new Error("Unauthorized");
