@@ -22,8 +22,6 @@ import CompletedView from "./CompletedView";
     onSupport?: () => void;
   }
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
   const OrderStateRenderer = ({
     order,
     ...handlers
@@ -34,7 +32,7 @@ import CompletedView from "./CompletedView";
       console.log("🚀 START CONFIRM");
 
       const res = await fetch(
-        `${API_URL}/orders/${order._id}/confirm-completed`,
+        `/api/orders/${order._id}/confirm-completed`,
         {
           method: "PATCH",
           credentials: "include",

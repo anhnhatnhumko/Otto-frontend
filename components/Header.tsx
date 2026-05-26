@@ -27,7 +27,7 @@ const Header = () => {
 
   // ✅ Lấy user từ /auth/me bằng cookie (credentials: include)
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
+    fetch(`/api/auth/me`, {
       credentials: "include", // 👈 QUAN TRỌNG
     })
       .then((res) => {

@@ -6,7 +6,7 @@ export async function apiPost<T>(
   path: string,
   body: unknown
 ): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`/api${path}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

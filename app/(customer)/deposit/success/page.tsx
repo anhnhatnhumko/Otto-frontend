@@ -25,7 +25,7 @@ const DepositSuccess = () => {
       try {
         
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/wallet/transactions`,
+          `/api/wallet/transactions`,
           {
             credentials: "include",
           }

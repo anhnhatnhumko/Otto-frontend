@@ -18,8 +18,6 @@ import { connectSocket } from "@/lib/socket";
 import { fetchOrderMessages } from "@/lib/api/chat";
 import { Badge } from "@/components/ui/badge";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
 type RealtimeOrderPayload = {
   [key: string]: unknown;
   _id?: string;

@@ -1,5 +1,4 @@
 import { useCallback, useState } from 'react';
-import { requireApiUrl } from '@/lib/api-url';
 import { OverdueOrderInfo } from '@/components/OverdueOrderPopup';
 
 export const useOverdueOrder = () => {
@@ -7,8 +6,6 @@ export const useOverdueOrder = () => {
   const [overdueInfo, setOverdueInfo] = useState<OverdueOrderInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [lastPopupKey, setLastPopupKey] = useState<string | null>(null);
-
-  const API_URL = requireApiUrl();
 
   const closePopupIfInvalid = useCallback((order: any) => {
     if (!open || !overdueInfo) return;
@@ -85,7 +82,7 @@ export const useOverdueOrder = () => {
         return true;
       }
 
-      const res = await fetch(`${API_URL}/orders/${orderId}/timeout-keep`, {
+      const res = await fetch(`/api/orders/${orderId}/timeout-keep`, {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -105,12 +102,12 @@ export const useOverdueOrder = () => {
     } finally {
       setLoading(false);
     }
-  }, [API_URL, overdueInfo?.popupType]);
+  }, [overdueInfo?.popupType]);
 
   const handleCancelOrder = useCallback(async (orderId: string) => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/orders/${orderId}/cancel`, {
+      const res = await fetch(`/api/orders/${orderId}/cancel`, {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -130,7 +127,7 @@ export const useOverdueOrder = () => {
     } finally {
       setLoading(false);
     }
-  }, [API_URL]);
+  }, []);
 
   return {
     open,

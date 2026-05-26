@@ -15,8 +15,6 @@ import {
   ArrowRight,
 } from "lucide-react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
 type Order = {
   _id: string;
   serviceSnapshot?: { name?: string };

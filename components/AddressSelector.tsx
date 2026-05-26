@@ -13,8 +13,6 @@ import {
 import { MapPin } from "lucide-react";
 import { buildFullAddress } from "@/lib/utils/address";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
 interface Province {
   _id: string;
   name: string;
@@ -51,7 +49,7 @@ const AddressSelector = ({ value, onChange }: AddressSelectorProps) => {
   useEffect(() => {
     const fetchProvinces = async () => {
       try {
-        const res = await fetch(`${API_URL}/locations/provinces`);
+        const res = await fetch(`/api/locations/provinces`);
 
         const data = await res.json();
 
@@ -79,7 +77,7 @@ const AddressSelector = ({ value, onChange }: AddressSelectorProps) => {
         setLoadingWards(true);
 
         const res = await fetch(
-          `${API_URL}/locations?provinceId=${value.provinceId}`
+          `/api/locations?provinceId=${value.provinceId}`
         );
 
         const data = await res.json();

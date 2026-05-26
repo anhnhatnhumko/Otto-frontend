@@ -1,5 +1,4 @@
 import { apiPost } from "./api";
-import { requireApiUrl } from "@/lib/api-url";
 
 export function setAuthToken(token: string) {
   document.cookie = `accessToken=${token}; path=/`;

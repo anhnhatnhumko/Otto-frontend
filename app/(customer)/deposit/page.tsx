@@ -46,7 +46,7 @@ const Deposit = () => {
 
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/wallet/deposit`,
+        `/api/wallet/deposit`,
         {
           method: "POST",
           credentials: "include",
@@ -81,7 +81,7 @@ const Deposit = () => {
 
   useEffect(() => {
     const fetchWallet = async () => {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/wallet`, {
+      const res = await fetch(`/api/wallet`, {
         credentials: "include",
       });
 

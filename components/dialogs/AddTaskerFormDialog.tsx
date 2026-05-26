@@ -25,8 +25,6 @@ import {
 } from "@/components/ui/select";
 import type { Service } from "@/app/admin/dashboard/types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
 interface Province {
   _id: string;
   name: string;
@@ -161,7 +159,7 @@ export function AddTaskerFormDialog({
   useEffect(() => {
     const fetchProvinces = async () => {
       try {
-        const res = await fetch(`${API_URL}/locations/provinces`);
+        const res = await fetch(`/api/locations/provinces`);
         const data = await res.json();
         setProvinces(data);
       } catch (err) {
@@ -182,7 +180,7 @@ export function AddTaskerFormDialog({
     const fetchWards = async () => {
       try {
         setLoadingWards(true);
-        const res = await fetch(`${API_URL}/locations?provinceId=${form.provinceId}`);
+        const res = await fetch(`/api/locations?provinceId=${form.provinceId}`);
         const data = await res.json();
         setWards(data);
         setForm((prev) => ({ ...prev, wardId: "" }));
@@ -250,13 +248,13 @@ export function AddTaskerFormDialog({
         form.services.forEach((s) => formData.append("services[]", s));
         formData.append("avatar", avatarFile);
 
-        response = await fetch(`${API_URL}/admin/taskers`, {
+        response = await fetch(`/api/admin/taskers`, {
           method: "POST",
           credentials: "include",
           body: formData,
         });
       } else {
-        response = await fetch(`${API_URL}/admin/taskers`, {
+        response = await fetch(`/api/admin/taskers`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

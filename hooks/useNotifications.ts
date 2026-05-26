@@ -2,12 +2,9 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { connectSocket } from '@/lib/socket';
 import { useAuth } from './useAuth';
 import { useUserStore } from '@/app/store/useUserStore';
-import { requireApiUrl } from '@/lib/api-url';
-
-const API_URL = requireApiUrl();
 
 const fetchAPI = async (path: string, options: RequestInit = {}) => {
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await fetch(`/api${path}`, {
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',

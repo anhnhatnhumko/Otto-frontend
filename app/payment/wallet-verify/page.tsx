@@ -6,7 +6,6 @@ import { useRef } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
-import { requireApiUrl } from "@/lib/api-url";
 import {
   Wallet,
   Shield,
@@ -17,7 +16,6 @@ import {
 } from "lucide-react";
 
 const WALLET_BALANCE = 950000;
-const API_URL = requireApiUrl();
 
 type WalletVerifyOrder = {
   serviceSnapshot?: {
@@ -45,7 +43,7 @@ const WalletVerifyContent = () => {
     if (!orderId) return;
 
     const fetchOrder = async () => {
-      const res = await fetch(`${API_URL}/orders/${orderId}`, {
+      const res = await fetch(`/api/orders/${orderId}`, {
         credentials: "include",
       });
 
@@ -106,7 +104,7 @@ const WalletVerifyContent = () => {
 
   const handleResend = async () => {
     try {
-      await fetch(`${API_URL}/orders/wallet/create-payment`, {
+      await fetch(`/api/orders/wallet/create-payment`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -139,7 +137,7 @@ const WalletVerifyContent = () => {
       setIsVerifying(true);
       setError("");
 
-      const res = await fetch(`${API_URL}/orders/wallet/verify-payment`, {
+      const res = await fetch(`/api/orders/wallet/verify-payment`, {
         method: "POST",
         credentials: "include",
         headers: {

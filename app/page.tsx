@@ -99,8 +99,7 @@ const Index = () => {
   useEffect(() => {
     const fetchServices = async () => {
       try {
-        const API_URL = requireApiUrl();
-        const res = await fetch(`${API_URL}/services`, {
+        const res = await fetch(`/api/services`, {
           credentials: "include",
         });
         const data = await res.json();

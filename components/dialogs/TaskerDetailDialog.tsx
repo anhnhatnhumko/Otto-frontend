@@ -22,9 +22,6 @@ import {
 import { TaskerStatusBadge } from "../shared/StatusBadges";
 import { formatCurrency } from "@/app/admin/dashboard/utils";
 import type { Tasker } from "@/app/admin/dashboard/types";
-import { requireApiUrl } from "@/lib/api-url";
-
-const API_URL = requireApiUrl();
 
 type Province = {
   _id: string;
@@ -49,18 +46,12 @@ export function TaskerDetailDialog({ open, onOpenChange, tasker }: TaskerDetailD
   useEffect(() => {
     if (!open || !tasker) return;
 
-    if (!API_URL) {
-      setProvinceName("");
-      setWardName("");
-      return;
-    }
-
     let isMounted = true;
 
     const fetchLocationNames = async () => {
       try {
         if (tasker.provinceId && tasker.provinceId !== "all") {
-          const provinceRes = await fetch(`${API_URL}/locations/provinces`, {
+          const provinceRes = await fetch(`/api/locations/provinces`, {
             cache: "no-store",
           });
 
@@ -83,7 +74,7 @@ export function TaskerDetailDialog({ open, onOpenChange, tasker }: TaskerDetailD
           tasker.wardId !== "all"
         ) {
           const wardRes = await fetch(
-            `${API_URL}/locations?provinceId=${tasker.provinceId}`,
+            `/api/locations?provinceId=${tasker.provinceId}`,
             { cache: "no-store" },
           );
 

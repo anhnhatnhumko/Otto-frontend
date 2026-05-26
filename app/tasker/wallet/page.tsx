@@ -42,8 +42,6 @@ type User = {
   avatar?: string;
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
 const TaskerWalletPage = () => {
   const { toast } = useToast();
   const router = useRouter();
@@ -58,7 +56,7 @@ const TaskerWalletPage = () => {
   >("all");
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
+    fetch(`/api/auth/me`, {
       credentials: "include",
     })
       .then((res) => {
@@ -162,8 +160,8 @@ const TaskerWalletPage = () => {
     const fetchAll = async () => {
       try {
         const [walletRes, txRes] = await Promise.all([
-          fetch(`${API_URL}/wallet`, { credentials: "include" }),
-          fetch(`${API_URL}/wallet/transactions`, {
+          fetch(`/api/wallet`, { credentials: "include" }),
+          fetch(`/api/wallet/transactions`, {
             credentials: "include",
           }),
         ]);

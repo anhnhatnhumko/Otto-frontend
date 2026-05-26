@@ -3,13 +3,10 @@
 import OverdueOrderPopup from "@/components/OverdueOrderPopup";
 import { useToast } from "@/hooks/use-toast";
 import { useOverdueOrder } from "@/hooks/useOverdueOrder";
-import { requireApiUrl } from "@/lib/api-url";
 import { connectSocket } from "@/lib/socket";
 import { Bell, MessageCircle, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-
-const API_URL = requireApiUrl();
 
 type RealtimeNotification = {
   _id?: string;
@@ -49,7 +46,7 @@ export default function GlobalNotificationPopup({ userId, role }: Props) {
     if (!id) return;
 
     try {
-      await fetch(`${API_URL}/notifications/${id}/read`, {
+      await fetch(`/api/notifications/${id}/read`, {
         method: "PATCH",
         credentials: "include",
       });

@@ -63,7 +63,6 @@ type User = {
   avatar?: string;
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9999";
 const quickAmounts = [100000, 200000, 500000, 1000000, 2000000, 5000000];
 
 const banks = [
@@ -94,7 +93,7 @@ const TaskerWithdraw = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [balance, setBalance] = useState(0);
   useEffect(() => {
-    fetch(`${API_URL}/bank-accounts`, {
+    fetch(`/api/bank-accounts`, {
       credentials: "include",
     })
       .then((res) => res.json())
@@ -115,7 +114,7 @@ const TaskerWithdraw = () => {
 
 
   useEffect(() => {
-    fetch(`${API_URL}/wallet`, {
+    fetch(`/api/wallet`, {
       credentials: "include",
     })
       .then((res) => res.json())
@@ -125,7 +124,7 @@ const TaskerWithdraw = () => {
   const [history, setHistory] = useState([]);
 
   useEffect(() => {
-    fetch(`${API_URL}/wallet/transactions`, {
+    fetch(`/api/wallet/transactions`, {
       credentials: "include",
     })
       .then((res) => res.json())
@@ -159,7 +158,7 @@ const TaskerWithdraw = () => {
   };
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
+    fetch(`/api/auth/me`, {
       credentials: "include", 
     })
     .then((res) => {
@@ -179,7 +178,7 @@ const TaskerWithdraw = () => {
 
   const handleWithdraw = async () => {
     try {
-      const res = await fetch(`${API_URL}/wallet/withdraw`, {
+      const res = await fetch(`/api/wallet/withdraw`, {
         method: "POST",
         credentials: "include",
         headers: {
@@ -212,7 +211,7 @@ const TaskerWithdraw = () => {
     try {
       if (!newBankName || !newAccountNumber || !newAccountHolder) return;
 
-      const res = await fetch(`${API_URL}/bank-accounts`, {
+      const res = await fetch(`/api/bank-accounts`, {
         method: "POST",
         credentials: "include",
         headers: {

@@ -19,8 +19,6 @@ import type {
     SocketIdPayload,
 } from "@/lib/admin-socket-contract";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
 import type {
     Order,
     User,
@@ -256,7 +254,7 @@ async function fetchJson<T>(
     path: string,
     router: ReturnType<typeof useRouter>
 ): Promise<T> {
-    const res = await fetch(`${API_URL}${path}`, {
+    const res = await fetch(`/api${path}`, {
         credentials: "include",
         cache: "no-store",
     });

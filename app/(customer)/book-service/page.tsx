@@ -38,8 +38,6 @@ interface Service {
   priceValue: number;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
 const getIconByName = (name: string): LucideIcon => {
   switch (name) {
     case "Dọn dẹp nhà cửa":
@@ -136,7 +134,7 @@ const BookService = () => {
   useEffect(() => {
     const fetchServices = async () => {
       try {
-        const res = await fetch(`${API_URL}/services`, {
+        const res = await fetch(`/api/services`, {
           credentials: "include",
         });
 
@@ -193,7 +191,7 @@ const BookService = () => {
     try {
       const scheduleTime = new Date(`${selectedDate}T${startTime}:00`);
 
-      const res = await fetch(`${API_URL}/orders`, {
+      const res = await fetch(`/api/orders`, {
         method: "POST",
         credentials: "include",
         headers: {

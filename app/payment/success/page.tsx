@@ -7,9 +7,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2 } from "lucide-react";
-import { requireApiUrl } from "@/lib/api-url";
 
-const API_URL = requireApiUrl();
 const CONFIRMED_STATUSES = new Set(["PAID", "SEARCHING"]);
 const REDIRECT_SECONDS = 8;
 
@@ -74,7 +72,7 @@ const PaymentSuccessContent = () => {
 
     const fetchOrder = async () => {
       try {
-        const res = await fetch(`${API_URL}/orders/${orderId}`, {
+        const res = await fetch(`/api/orders/${orderId}`, {
           credentials: "include",
           cache: "no-store",
         });
@@ -128,7 +126,7 @@ const PaymentSuccessContent = () => {
     if (sessionId) {
       (async () => {
         try {
-          const confirmRes = await fetch(`${API_URL}/payments/stripe/success?session_id=${encodeURIComponent(
+          const confirmRes = await fetch(`/api/payments/stripe/success?session_id=${encodeURIComponent(
             sessionId,
           )}`, {
             credentials: 'include',
