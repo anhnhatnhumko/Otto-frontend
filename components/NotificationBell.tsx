@@ -52,7 +52,7 @@ export default function NotificationBell() {
 
     const bootstrapRealtime = async () => {
       try {
-        const meRes = await fetch(`${API_URL}/auth/me`, {
+        const meRes = await fetch(`/api/auth/me`, {
           credentials: "include",
           cache: "no-store",
         });

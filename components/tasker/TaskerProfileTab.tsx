@@ -116,8 +116,8 @@ const TaskerProfileTab = ({
       try {
         setLoading(true);
 
-        // Tải user hiện tại
-        const userRes = await fetch(`${API_URL}/auth/me`, {
+        // Tải user hiện tại (qua proxy cùng domain để cookie httpOnly được gửi)
+        const userRes = await fetch(`/api/auth/me`, {
           credentials: "include",
         });
         const userData = await userRes.json();
