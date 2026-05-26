@@ -51,26 +51,32 @@ async function forward(req: Request, params: { slug?: string[] }) {
   });
 }
 
-export async function GET(req: Request, { params }: { params: { slug?: string[] } }) {
-  return forward(req, params || {});
+export async function GET(req: Request, { params }: { params: Promise<{ slug: string[] }> }) {
+  const resolvedParams = await params;
+  return forward(req, resolvedParams || {});
 }
 
-export async function POST(req: Request, { params }: { params: { slug?: string[] } }) {
-  return forward(req, params || {});
+export async function POST(req: Request, { params }: { params: Promise<{ slug: string[] }> }) {
+  const resolvedParams = await params;
+  return forward(req, resolvedParams || {});
 }
 
-export async function PATCH(req: Request, { params }: { params: { slug?: string[] } }) {
-  return forward(req, params || {});
+export async function PATCH(req: Request, { params }: { params: Promise<{ slug: string[] }> }) {
+  const resolvedParams = await params;
+  return forward(req, resolvedParams || {});
 }
 
-export async function PUT(req: Request, { params }: { params: { slug?: string[] } }) {
-  return forward(req, params || {});
+export async function PUT(req: Request, { params }: { params: Promise<{ slug: string[] }> }) {
+  const resolvedParams = await params;
+  return forward(req, resolvedParams || {});
 }
 
-export async function DELETE(req: Request, { params }: { params: { slug?: string[] } }) {
-  return forward(req, params || {});
+export async function DELETE(req: Request, { params }: { params: Promise<{ slug: string[] }> }) {
+  const resolvedParams = await params;
+  return forward(req, resolvedParams || {});
 }
 
-export async function OPTIONS(req: Request, { params }: { params: { slug?: string[] } }) {
-  return forward(req, params || {});
+export async function OPTIONS(req: Request, { params }: { params: Promise<{ slug: string[] }> }) {
+  const resolvedParams = await params;
+  return forward(req, resolvedParams || {});
 }
