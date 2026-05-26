@@ -180,7 +180,7 @@ const CustomerDashboard = () => {
   const isMobile = useIsMobile();
 
   useEffect(() => {
-    fetch(`${API_URL}/auth/me`, {
+    fetch(`/api/auth/me`, {
       credentials: "include",
     })
       .then((res) => handleAuthMeResponse(res, router))
