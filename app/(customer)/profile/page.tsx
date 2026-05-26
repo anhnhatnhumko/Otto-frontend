@@ -77,7 +77,6 @@ import WalletCard from "@/components/wallet/WalletCard";
 import OrderStateRenderer from "@/components/orders/OrderStateRenderer";
 import { useUserStore } from "@/app/store/useUserStore";
 import { handleAuthMeResponse } from "@/lib/auth-client";
-import { requireApiUrl } from "@/lib/api-url";
 import {
   fetchProfileStats,
   fetchUpcomingBookings,
@@ -88,7 +87,7 @@ import {
 } from "@/lib/api/profile.api";
 import { mapOrder } from "@/lib/mappers/order.mapper";
 
-const API_URL = requireApiUrl();
+
 
 type MeUser = {
   _id: string;
@@ -415,14 +414,11 @@ const CustomerDashboard = () => {
       const formData = new FormData();
       formData.append("file", file);
 
-      const res = await fetch(
-        `${API_URL}/users/avatar`,
-        {
-          method: "PATCH",
-          body: formData,
-          credentials: "include",
-        },
-      );
+      const res = await fetch(`/api/proxy/users/avatar`, {
+        method: "PATCH",
+        body: formData,
+        credentials: "include",
+      });
 
       const data = await res.json();
 
@@ -454,7 +450,7 @@ const CustomerDashboard = () => {
     }
 
     try {
-      const res = await fetch(`${API_URL}/orders/${order._id}/cancel`, {
+      const res = await fetch(`/api/proxy/orders/${order._id}/cancel`, {
         method: "PATCH",
         credentials: "include",
       });
@@ -1325,21 +1321,18 @@ const CustomerDashboard = () => {
                           }
 
                           try {
-                            const res = await fetch(
-                              `${API_URL}/customers/profile`,
-                              {
-                                method: "PATCH",
-                                headers: {
-                                  "Content-Type": "application/json",
-                                },
-                                credentials: "include",
-                                body: JSON.stringify({
-                                  fullName: formData.fullName,
-                                  email: formData.email,
-                                  phone: formData.phone,
-                                }),
-                              }
-                            );
+                            const res = await fetch(`/api/proxy/customers/profile`, {
+                              method: "PATCH",
+                              headers: {
+                                "Content-Type": "application/json",
+                              },
+                              credentials: "include",
+                              body: JSON.stringify({
+                                fullName: formData.fullName,
+                                email: formData.email,
+                                phone: formData.phone,
+                              }),
+                            });
 
                             if (!res.ok) {
                               const errorData = await res.json();
@@ -1540,5 +1533,6 @@ const CustomerDashboard = () => {
     </div>
   );
 };
+
 
 export default CustomerDashboard;

@@ -49,7 +49,7 @@ const TaskerProfileHeader = ({
   const initial = user?.fullName?.charAt(0)?.toUpperCase() || "";
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
+    fetch(`/api/auth/me`, {
       credentials: "include", // 👈 QUAN TRỌNG
     })
       .then((res) => handleAuthMeResponse(res, router))
@@ -70,7 +70,7 @@ const TaskerProfileHeader = ({
     const fetchServices = async () => {
       try {
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/services?includeInactive=true`
+          `/api/proxy/services?includeInactive=true`
         );
         const data = await res.json();
         setServices(data);
@@ -108,7 +108,7 @@ const TaskerProfileHeader = ({
       const formData = new FormData();
       formData.append("file", file);
 
-      const res = await fetch("http://localhost:9999/users/avatar", {
+      const res = await fetch("/api/proxy/users/avatar", {
         method: "PATCH",
         body: formData,
         credentials: "include",

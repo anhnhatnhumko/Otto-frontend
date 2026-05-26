@@ -21,12 +21,9 @@ import ChatDialog, { ChatMessage } from "@/components/dialogs/ChatDialog";
 import { fetchOrderMessages } from "@/lib/api/chat";
 import { connectSocket } from "@/lib/socket";
 import { handleAuthMeResponse } from "@/lib/auth-client";
-import { requireApiUrl } from "@/lib/api-url";
-
-const API_URL = requireApiUrl();
 
 const acceptOrder = async (jobId: string) => {
-  const res = await fetch(`${API_URL}/orders/${jobId}/accept`, {
+  const res = await fetch(`/api/proxy/orders/${jobId}/accept`, {
     method: "PATCH",
     credentials: "include",
   });
@@ -119,7 +116,7 @@ const TaskerDashboardContent = () => {
   useEffect(() => {
     const fetchWallet = async () => {
       try {
-        const res = await fetch(`${API_URL}/wallet`, {
+        const res = await fetch(`/api/proxy/wallet`, {
           credentials: "include",
         });
 
@@ -299,8 +296,8 @@ const TaskerDashboardContent = () => {
       );
 
       // 🔥 MARK MESSAGES AS READ ON BACKEND
-      try {
-        await fetch(`${API_URL}/chat/orders/${job.id}/messages/mark-read`, {
+        try {
+        await fetch(`/api/proxy/chat/orders/${job.id}/messages/mark-read`, {
           method: "PATCH",
           credentials: "include",
         });
@@ -603,7 +600,7 @@ const TaskerDashboardContent = () => {
         }
       }
 
-      const res = await fetch(`${API_URL}/orders/${jobId}/start`, {
+      const res = await fetch(`/api/proxy/orders/${jobId}/start`, {
         method: "PATCH",
         credentials: "include",
       });
@@ -634,7 +631,7 @@ const TaskerDashboardContent = () => {
     const doReject = async () => {
       try {
         if (!selectedJob) return;
-        const res = await fetch(`${API_URL}/orders/${selectedJob.id}/reject`, {
+        const res = await fetch(`/api/proxy/orders/${selectedJob.id}/reject`, {
           method: "PATCH",
           credentials: "include",
         });
@@ -660,7 +657,7 @@ const TaskerDashboardContent = () => {
 
   const handleComplete = async (jobId: string) => {
     try {
-      const res = await fetch(`${API_URL}/orders/${jobId}/complete`, {
+      const res = await fetch(`/api/proxy/orders/${jobId}/complete`, {
         method: "PATCH",
         credentials: "include",
       });
@@ -718,7 +715,7 @@ const TaskerDashboardContent = () => {
     const doReject = async () => {
       try {
         if (!incomingJob) return;
-        const res = await fetch(`${API_URL}/orders/${incomingJob.id}/reject`, {
+        const res = await fetch(`/api/proxy/orders/${incomingJob.id}/reject`, {
           method: "PATCH",
           credentials: "include",
         });

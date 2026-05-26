@@ -1,8 +1,5 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
 export async function fetchOrderMessages(orderId: string, limit = 200) {
-  if (!API_URL) throw new Error('NEXT_PUBLIC_API_URL is required');
-  const res = await fetch(`${API_URL}/chat/orders/${orderId}/messages?limit=${limit}`, {
+  const res = await fetch(`/api/proxy/chat/orders/${orderId}/messages?limit=${limit}`, {
     credentials: 'include',
     cache: 'no-store',
   });

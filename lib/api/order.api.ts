@@ -1,8 +1,5 @@
-import { requireApiUrl } from "@/lib/api-url";
-
-const API_URL = requireApiUrl();
 export const getAvailableOrders = async () => {
-    const res = await fetch(`${API_URL}/orders/available`, {
+    const res = await fetch(`/api/proxy/orders/available`, {
         credentials: "include", // vì bạn dùng cookie JWT
     });
 
@@ -12,7 +9,7 @@ export const getAvailableOrders = async () => {
 };
 
 export const getMyTaskerOrders = async () => {
-  const res = await fetch(`${API_URL}/orders/my-tasker`, {
+  const res = await fetch(`/api/proxy/orders/my-tasker`, {
     credentials: "include", // vì bạn dùng cookie JWT
   });
 

@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { Edit3, Loader2, Mail, Phone, User } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { requireApiUrl } from "@/lib/api-url";
 import {
   Select,
   SelectContent,
@@ -17,7 +16,6 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 
-const API_URL = requireApiUrl();
 
 interface TaskerProfileTabProps {
   isEditing: boolean;
@@ -132,7 +130,7 @@ const TaskerProfileTab = ({
 
         const provinceId = getId(userData.provinceId);
         // Tải danh sách tỉnh (dùng cho select)
-        const provincesRes = await fetch(`${API_URL}/locations/provinces`);
+        const provincesRes = await fetch(`/api/proxy/locations/provinces`);
         const provincesData = await provincesRes.json();
         setProvinces(provincesData);
         const wardId = getId(userData.wardId);
@@ -148,7 +146,7 @@ const TaskerProfileTab = ({
           const foundProvince = provincesData.find((p: Province) => p._id === provinceId);
           setProvinceName(foundProvince?.name || getName(userData.provinceId));
 
-          const wardRes = await fetch(`${API_URL}/locations?provinceId=${provinceId}`);
+          const wardRes = await fetch(`/api/proxy/locations?provinceId=${provinceId}`);
           const wardData = await wardRes.json();
           setWards(wardData);
         }
@@ -161,9 +159,7 @@ const TaskerProfileTab = ({
         setSelectedServices(skillIds);
 
         // Tải danh sách dịch vụ
-        const serviceRes = await fetch(
-          `${API_URL}/services?includeInactive=true`,
-        );
+        const serviceRes = await fetch(`/api/proxy/services?includeInactive=true`);
         const serviceData = await serviceRes.json();
         console.log("🔧 Services từ API:", serviceData);
         setServices(serviceData);
@@ -193,7 +189,7 @@ const TaskerProfileTab = ({
       }
 
       try {
-        const res = await fetch(`${API_URL}/locations?provinceId=${selectedProvince}`);
+        const res = await fetch(`/api/proxy/locations?provinceId=${selectedProvince}`);
         const data = await res.json();
         setWards(data || []);
         const provinceChanged =
@@ -211,7 +207,7 @@ const TaskerProfileTab = ({
     };
 
     void loadWards();
-  }, [selectedProvince, API_URL, provinces]);
+  }, [selectedProvince, provinces]);
 
   useEffect(() => {
     const matchedWardName = wards.find((ward) => ward._id === selectedWardId)?.name || "";
@@ -241,7 +237,7 @@ const TaskerProfileTab = ({
     if (provinceId) {
       const loadCurrentWards = async () => {
         try {
-          const res = await fetch(`${API_URL}/locations?provinceId=${provinceId}`);
+          const res = await fetch(`/api/proxy/locations?provinceId=${provinceId}`);
           const data = await res.json();
           setWards(data || []);
           if (wardId) {
@@ -258,7 +254,7 @@ const TaskerProfileTab = ({
 
       void loadCurrentWards();
     }
-  }, [isEditing, user, API_URL]);
+  }, [isEditing, user]);
 
   const handleSave = async () => {
     try {
@@ -317,7 +313,7 @@ const TaskerProfileTab = ({
 
       console.log("🔥 Gửi payload:", updatePayload);
 
-      const res = await fetch(`${API_URL}/tasker/profile`, {
+      const res = await fetch(`/api/proxy/tasker/profile`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

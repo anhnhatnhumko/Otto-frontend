@@ -10,9 +10,6 @@ import {
 import { usePathname, useRouter } from "next/navigation";
 import { connectSocket } from "@/lib/socket";
 import { useToast } from "@/hooks/use-toast";
-import { requireApiUrl } from "@/lib/api-url";
-
-const API_URL = requireApiUrl();
 
 type Notification = {
   _id: string;

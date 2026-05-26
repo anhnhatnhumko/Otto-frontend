@@ -1,13 +1,9 @@
-import { requireApiUrl } from "@/lib/api-url";
-
-const API_URL = requireApiUrl();
-
 /**
  * Fetch customer profile stats: total orders, total spent, avg rating, loyalty points, member level
  */
 export async function fetchProfileStats() {
   try {
-    const res = await fetch(`${API_URL}/customers/profile-stats`, {
+    const res = await fetch(`/api/proxy/customers/profile-stats`, {
       credentials: 'include',
       cache: 'no-store',
     });
@@ -28,7 +24,7 @@ export async function fetchProfileStats() {
  */
 export async function fetchUpcomingBookings() {
   try {
-    const res = await fetch(`${API_URL}/orders?status=pending,confirmed,assigned&sort=-scheduleTime&limit=5`, {
+    const res = await fetch(`/api/proxy/orders?status=pending,confirmed,assigned&sort=-scheduleTime&limit=5`, {
       credentials: 'include',
       cache: 'no-store',
     });
@@ -49,7 +45,7 @@ export async function fetchUpcomingBookings() {
  */
 export async function fetchOrdersHistory(limit = 20) {
   try {
-    const res = await fetch(`${API_URL}/orders?sort=-createdAt&limit=${limit}`, {
+    const res = await fetch(`/api/proxy/orders?sort=-createdAt&limit=${limit}`, {
       credentials: 'include',
       cache: 'no-store',
     });
@@ -70,7 +66,7 @@ export async function fetchOrdersHistory(limit = 20) {
  */
 export async function fetchPromotions() {
   try {
-    const res = await fetch(`${API_URL}/promotions?active=true&limit=10`, {
+    const res = await fetch(`/api/proxy/promotions?active=true&limit=10`, {
       credentials: 'include',
       cache: 'no-store',
     });
@@ -91,7 +87,7 @@ export async function fetchPromotions() {
  */
 export async function fetchFavoriteServices() {
   try {
-    const res = await fetch(`${API_URL}/customers/favorite-services?limit=5`, {
+    const res = await fetch(`/api/proxy/customers/favorite-services?limit=5`, {
       credentials: 'include',
       cache: 'no-store',
     });
@@ -112,7 +108,7 @@ export async function fetchFavoriteServices() {
  */
 export async function fetchCustomerProfile() {
   try {
-    const res = await fetch(`${API_URL}/customers/profile`, {
+    const res = await fetch(`/api/proxy/customers/profile`, {
       credentials: 'include',
       cache: 'no-store',
     });
