@@ -43,7 +43,7 @@ const ThankYou = () => {
     const fetchOrder = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`${API_URL}/orders/${orderId}`, {
+        const res = await fetch(`/api/orders/${orderId}`, {
           credentials: "include",
         });
 
@@ -80,7 +80,7 @@ const ThankYou = () => {
 
     try {
       setSaving(true);
-      const res = await fetch(`${API_URL}/orders/${orderId}/rate`, {
+      const res = await fetch(`/api/orders/${orderId}/rate`, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

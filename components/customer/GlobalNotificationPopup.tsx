@@ -60,7 +60,7 @@ export default function GlobalNotificationPopup({ userId, role }: Props) {
     if (!orderId) return;
 
     try {
-      const res = await fetch(`${API_URL}/orders/${orderId}`, {
+      const res = await fetch(`/api/orders/${orderId}`, {
         credentials: "include",
         cache: "no-store",
       });
