@@ -71,7 +71,7 @@ const Payment = () => {
 
   useEffect(() => {
     const fetchOrder = async () => {
-      const res = await fetch(`${API_URL}/orders/${orderId}`, {
+      const res = await fetch(`/api/orders/${orderId}`, {
         credentials: "include",
       });
 
@@ -81,7 +81,7 @@ const Payment = () => {
 
     const fetchWallet = async () => {
       console.log("🔥 API_URL:", API_URL);
-      const res = await fetch(`${API_URL}/wallet`, {
+      const res = await fetch(`/api/wallet`, {
         credentials: "include",
       });
 
@@ -195,7 +195,7 @@ const Payment = () => {
     try {
       setIsProcessing(true);
 
-      const res = await fetch(`${API_URL}/orders/wallet/create-payment`, {
+      const res = await fetch(`/api/orders/wallet/create-payment`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -233,7 +233,7 @@ const Payment = () => {
     try {
       console.log("🔥 FINAL orderId:", orderId);
 
-      const res = await fetch(`${API_URL}/payments/${orderId}/create`, {
+      const res = await fetch(`/api/payments/${orderId}/create`, {
         method: "POST",
         credentials: "include",
         headers: {

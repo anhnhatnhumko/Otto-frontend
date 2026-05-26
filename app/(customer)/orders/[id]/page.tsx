@@ -166,7 +166,7 @@ function OrderTrackingPageContent() {
     }
 
     try {
-      const res = await fetch(`${API_URL}/orders/${order._id}/cancel`, {
+      const res = await fetch(`/api/orders/${order._id}/cancel`, {
         method: "PATCH",
         credentials: "include",
       });
@@ -211,7 +211,7 @@ function OrderTrackingPageContent() {
         setIsRefreshing(true);
       }
 
-      const res = await fetch(`${API_URL}/orders/${orderId}`, {
+      const res = await fetch(`/api/orders/${orderId}`, {
         credentials: "include",
         cache: "no-store",
       });

@@ -29,7 +29,7 @@ const VerifyEmailError = () => {
 
     try {
       const API_URL = requireApiUrl();
-      const res = await fetch(`${API_URL}/auth/resend-verify-email`, {
+      const res = await fetch(`/api/auth/resend-verify-email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim() }),

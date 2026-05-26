@@ -299,7 +299,7 @@ export function useAdminData() {
 
     const reloadOrders = useCallback(async () => {
         try {
-            const res = await fetch(`${API_URL}/admin/orders?limit=10000`, {
+            const res = await fetch(`/api/admin/orders?limit=10000`, {
                 credentials: "include",
                 cache: "no-store",
             });
@@ -316,7 +316,7 @@ export function useAdminData() {
     const reloadUsers = useCallback(async () => {
         try {
             const res = await fetch(
-                `${API_URL}/admin/users?role=CUSTOMER&limit=10000`,
+                `/api/admin/users?role=CUSTOMER&limit=10000`,
                 {
                     credentials: "include",
                     cache: "no-store",
@@ -335,7 +335,7 @@ export function useAdminData() {
 
     const reloadServices = useCallback(async () => {
         try {
-            const res = await fetch(`${API_URL}/services?includeInactive=true`, {
+            const res = await fetch(`/api/services?includeInactive=true`, {
                 credentials: "include",
                 cache: "no-store",
             });
@@ -366,7 +366,7 @@ export function useAdminData() {
                 ...(wardId !== "all" && { wardId }),
             });
 
-            const res = await fetch(`${API_URL}/admin/users?${query}`, {
+            const res = await fetch(`/api/admin/users?${query}`, {
                 credentials: "include",
                 cache: "no-store",
             });

@@ -24,7 +24,7 @@ function VerifyEmailPageContent() {
 
   const API_URL = requireApiUrl();
 
-  const resendUrl = useMemo(() => `${API_URL}/auth/resend-verify-email`, [API_URL]);
+  const resendUrl = useMemo(() => `/api/auth/resend-verify-email`, [API_URL]);
 
   const handleResend = async () => {
     if (!email.trim()) {

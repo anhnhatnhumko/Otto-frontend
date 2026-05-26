@@ -100,70 +100,70 @@ export default function Admin() {
 
       switch (action) {
         case "confirm_order":
-          response = await fetch(`${API_URL}/admin/orders/${id}/confirm`, {
+          response = await fetch(`/api/admin/orders/${id}/confirm`, {
             method: "PATCH",
             credentials: "include",
           });
           break;
 
         case "cancel_order":
-          response = await fetch(`${API_URL}/admin/orders/${id}/cancel`, {
+          response = await fetch(`/api/admin/orders/${id}/cancel`, {
             method: "PATCH",
             credentials: "include",
           });
           break;
 
         case "complete_order":
-          response = await fetch(`${API_URL}/admin/orders/${id}/complete`, {
+          response = await fetch(`/api/admin/orders/${id}/complete`, {
             method: "PATCH",
             credentials: "include",
           });
           break;
 
         case "ban_user":
-          response = await fetch(`${API_URL}/admin/users/${id}/ban`, {
+          response = await fetch(`/api/admin/users/${id}/ban`, {
             method: "PATCH",
             credentials: "include",
           });
           break;
 
         case "activate_user":
-          response = await fetch(`${API_URL}/admin/users/${id}/activate`, {
+          response = await fetch(`/api/admin/users/${id}/activate`, {
             method: "PATCH",
             credentials: "include",
           });
           break;
 
         case "approve_tasker":
-          response = await fetch(`${API_URL}/admin/taskers/${id}/approve`, {
+          response = await fetch(`/api/admin/taskers/${id}/approve`, {
             method: "PATCH",
             credentials: "include",
           });
           break;
 
         case "reject_tasker":
-          response = await fetch(`${API_URL}/admin/taskers/${id}/reject`, {
+          response = await fetch(`/api/admin/taskers/${id}/reject`, {
             method: "DELETE",
             credentials: "include",
           });
           break;
 
         case "ban_tasker":
-          response = await fetch(`${API_URL}/admin/taskers/${id}/ban`, {
+          response = await fetch(`/api/admin/taskers/${id}/ban`, {
             method: "PATCH",
             credentials: "include",
           });
           break;
 
         case "activate_tasker":
-          response = await fetch(`${API_URL}/admin/taskers/${id}/activate`, {
+          response = await fetch(`/api/admin/taskers/${id}/activate`, {
             method: "PATCH",
             credentials: "include",
           });
           break;
 
         case "delete_service":
-          response = await fetch(`${API_URL}/services/${id}`, {
+          response = await fetch(`/api/services/${id}`, {
             method: "DELETE",
             credentials: "include",
           });
@@ -229,7 +229,7 @@ export default function Admin() {
 
     try {
       if (selectedService) {
-        const res = await fetch(`${API_URL}/services/${selectedService.id}`, {
+        const res = await fetch(`/api/services/${selectedService.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -240,7 +240,7 @@ export default function Admin() {
         }
         toast({ title: "Thành công", description: "Đã cập nhật dịch vụ" });
       } else {
-        const res = await fetch(`${API_URL}/services`, {
+        const res = await fetch(`/api/services`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -270,7 +270,7 @@ export default function Admin() {
     try {
       const newStatus = service.status === "active" ? "inactive" : "active";
       const res = await fetch(
-        `${API_URL}/services/${serviceId}/active/${newStatus === "active"}`,
+        `/api/services/${serviceId}/active/${newStatus === "active"}`,
         {
           method: "PUT",
           credentials: "include",

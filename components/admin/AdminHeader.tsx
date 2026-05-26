@@ -137,7 +137,7 @@ const AdminHeader = () => {
   const fetchList = async () => {
     if (!API_URL) return;
     try {
-      const res = await fetch(`${API_URL}/admin/taskers/requests`);
+      const res = await fetch(`/api/admin/taskers/requests`);
       if (res.ok) {
         const json = await res.json();
         // API may return { success: true, data: [...] } or raw array
@@ -216,7 +216,7 @@ const AdminHeader = () => {
   const openDetail = async (id: string) => {
     if (!API_URL) return;
     try {
-      const res = await fetch(`${API_URL}/admin/taskers/requests/${id}`);
+      const res = await fetch(`/api/admin/taskers/requests/${id}`);
       if (res.ok) {
         const json = await res.json();
         const item = json?.data ?? json;

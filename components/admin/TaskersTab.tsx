@@ -154,7 +154,7 @@ export function TaskersTab({
   useEffect(() => {
     const fetchProvinces = async () => {
       try {
-        const res = await fetch(`${API_URL}/locations/provinces`);
+        const res = await fetch(`/api/locations/provinces`);
 
         const data = await res.json();
 
@@ -186,7 +186,7 @@ export function TaskersTab({
 
     const fetchRequests = async () => {
       try {
-        const res = await fetch(`${API_URL}/admin/taskers/requests`);
+        const res = await fetch(`/api/admin/taskers/requests`);
         if (res.ok) {
           const json = await res.json();
           const list = Array.isArray(json)
@@ -381,7 +381,7 @@ export function TaskersTab({
     const fetchWards = async () => {
       try {
         const res = await fetch(
-          `${API_URL}/locations?provinceId=${provinceId}`,
+          `/api/locations?provinceId=${provinceId}`,
         );
 
         const data = await res.json();
@@ -411,7 +411,7 @@ export function TaskersTab({
 
   const openDetail = async (id: string) => {
     try {
-      const res = await fetch(`${API_URL}/admin/taskers/requests/${id}`);
+      const res = await fetch(`/api/admin/taskers/requests/${id}`);
       if (res.ok) {
         const json = await res.json();
         const item = json?.data ?? json;

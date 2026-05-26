@@ -7,9 +7,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { requireApiUrl } from "@/lib/api-url";
-
-const API_URL = requireApiUrl();
 
 function ChangePasswordForm() {
   const router = useRouter();
@@ -46,7 +43,7 @@ function ChangePasswordForm() {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_URL}/auth/change-password`, {
+      const response = await fetch(`/api/auth/change-password`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

@@ -77,7 +77,7 @@ const TaskerRegister = () => {
     const load = async () => {
       try {
         const API_URL = requireApiUrl();
-        const res = await fetch(`${API_URL}/services`, { credentials: "include" });
+        const res = await fetch(`/api/services`, { credentials: "include" });
         if (!res.ok) return;
         const data = await res.json();
         const mapped = data.map((s: any) => ({ id: s._id, name: s.name, icon: s.icon || "🔧" }));
@@ -94,7 +94,7 @@ const TaskerRegister = () => {
     const loadProvinces = async () => {
       try {
         const API_URL = requireApiUrl();
-        const res = await fetch(`${API_URL}/locations/provinces`);
+        const res = await fetch(`/api/locations/provinces`);
         if (!res.ok) return;
         const data = await res.json();
         setProvinces(data || []);
@@ -113,7 +113,7 @@ const TaskerRegister = () => {
     setFormData((p) => ({ ...p, district: '', city: '' }));
     try {
       const API_URL = requireApiUrl();
-      const res = await fetch(`${API_URL}/locations?provinceId=${provinceId}`);
+      const res = await fetch(`/api/locations?provinceId=${provinceId}`);
       if (!res.ok) return;
       const data = await res.json();
       setWards(data || []);
@@ -164,7 +164,7 @@ const TaskerRegister = () => {
       if (email) query.set('email', email);
       if (phone) query.set('phone', phone);
 
-      const res = await fetch(`${API_URL}/admin/taskers/requests/check-contact?${query.toString()}`);
+      const res = await fetch(`/api/admin/taskers/requests/check-contact?${query.toString()}`);
       if (!res.ok) return null;
 
       const json = await res.json();
@@ -248,7 +248,7 @@ const TaskerRegister = () => {
         services: selectedServices,
       };
 
-      const res = await fetch(`${API_URL}/admin/taskers/requests`, {
+      const res = await fetch(`/api/admin/taskers/requests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
