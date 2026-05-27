@@ -1,4 +1,5 @@
 import "./globals.css";
+import { Suspense } from "react";
 import BottomNavWrapper from "@/components/BottomNavWrapper";
 
 export default function RootLayout({
@@ -10,7 +11,9 @@ export default function RootLayout({
     <html lang="vi" suppressHydrationWarning>
       <body className="bg-slate-50 text-slate-900">
         {children}
-        <BottomNavWrapper />
+        <Suspense fallback={null}>
+          <BottomNavWrapper />
+        </Suspense>
       </body>
     </html>
   );
