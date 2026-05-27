@@ -270,6 +270,13 @@ function OrderTrackingPageContent() {
 
     const socket = connectSocket(userId, userRole);
     const currentOrderId = String(orderId);
+    const joinOrderRoom = () => {
+      socket.emit("order:join", {
+        orderId: currentOrderId,
+        userId,
+        role: userRole,
+      });
+    };
 
     const handleOrderEvent = (payload: RealtimeOrderPayload) => {
       const changedOrderId = getRealtimeOrderId(payload);
@@ -285,13 +292,10 @@ function OrderTrackingPageContent() {
       setSocketOnline(true);
     }
 
-    socket.emit("order:join", {
-      orderId: currentOrderId,
-      userId,
-      role: userRole,
-    });
+    joinOrderRoom();
 
     socket.on("connect", handleConnect);
+    socket.on("connect", joinOrderRoom);
     socket.on("disconnect", handleDisconnect);
 
     TRACKING_EVENTS.forEach((eventName) => {
@@ -319,6 +323,7 @@ function OrderTrackingPageContent() {
 
     return () => {
       socket.off("connect", handleConnect);
+      socket.off("connect", joinOrderRoom);
       socket.off("disconnect", handleDisconnect);
 
       TRACKING_EVENTS.forEach((eventName) => {

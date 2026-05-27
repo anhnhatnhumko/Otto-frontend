@@ -349,6 +349,26 @@ const TaskerDashboardContent = () => {
   };
 
   useEffect(() => {
+    if (!userId || !chatOpen || !chatOrderId) return;
+
+    const socket = connectSocket(userId, "TASKER");
+    const joinChatRoom = () => {
+      socket.emit("order:join", {
+        orderId: chatOrderId,
+        userId,
+        role: "TASKER",
+      });
+    };
+
+    joinChatRoom();
+    socket.on("connect", joinChatRoom);
+
+    return () => {
+      socket.off("connect", joinChatRoom);
+    };
+  }, [userId, chatOpen, chatOrderId]);
+
+  useEffect(() => {
     if (!chatOpen || !chatOrderId || !userId) return;
 
     let active = true;

@@ -38,6 +38,12 @@ export const connectSocket = (
   socket = io(URL, {
     withCredentials: true,
     transports: ["websocket", "polling"],
+    timeout: 20000,
+    reconnection: true,
+    reconnectionAttempts: 10,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    rememberUpgrade: true,
     auth: {
       userId,
       role,
