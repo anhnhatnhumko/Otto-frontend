@@ -44,10 +44,34 @@ const BottomNavWrapper = () => {
   const shouldHide = hideOnPrefixes.some((p) => pathname.startsWith(p));
   if (shouldHide) return null;
 
-  const handleTabChange = (tab: TabId) => {
-    setActiveTab(tab);
+  // Track last visited order id so we can offer a quick 'back to order' action
+  const [lastOrderId, setLastOrderId] = useState<string | null>(null);
 
-    switch (tab) {
+  useEffect(() => {
+    const match = pathname.match(/^\/orders\/([^\/\?]+)/);
+    if (match && match[1]) {
+      try {
+        sessionStorage.setItem("lastOrderId", match[1]);
+      } catch {}
+      setLastOrderId(match[1]);
+      return;
+    }
+
+    try {
+      const stored = sessionStorage.getItem("lastOrderId");
+      setLastOrderId(stored);
+    } catch {
+      setLastOrderId(null);
+    }
+  }, [pathname]);
+
+  const handleTabChange = (tab: string) => {
+    // coerce to known tab values
+    const known: TabId[] = ["overview", "orders", "book", "promotions", "profile"];
+    const t = (known.includes(tab as TabId) ? (tab as TabId) : "overview");
+    setActiveTab(t);
+
+    switch (t) {
       case "overview":
         router.push("/");
         break;
@@ -66,7 +90,23 @@ const BottomNavWrapper = () => {
     }
   };
 
-  return <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />;
+  return (
+    <>
+      {/* Quick back-to-order FAB (mobile only) */}
+      {lastOrderId && !pathname.startsWith("/orders/") && (
+        <div className="fixed right-4 bottom-20 z-50 md:hidden">
+          <button
+            onClick={() => router.push(`/orders/${lastOrderId}`)}
+            className="bg-primary text-white rounded-full p-3 shadow-lg"
+            aria-label="Quay lại đơn hàng gần nhất"
+          >
+            Đơn
+          </button>
+        </div>
+      )}
+      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
+    </>
+  );
 };
 
 export default BottomNavWrapper;

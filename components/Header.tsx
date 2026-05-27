@@ -113,14 +113,19 @@ const Header = () => {
           )}
         </div>
 
-        <button
-          className="md:hidden p-2 rounded-lg hover:bg-muted transition-colors"
-          onClick={() => setIsMenuOpen(!isMenuOpen)}
-          aria-expanded={isMenuOpen}
-          aria-label="Toggle menu"
-        >
-          {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
-        </button>
+        <div className="flex items-center gap-2 md:hidden">
+          <div>
+            <NotificationCenter />
+          </div>
+          <button
+            className="p-2 rounded-lg hover:bg-muted transition-colors"
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            aria-expanded={isMenuOpen}
+            aria-label="Toggle menu"
+          >
+            {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
 
         {isMenuOpen && (
           <div className="md:hidden absolute top-full left-0 right-0 bg-card border-b border-border animate-fade-up">

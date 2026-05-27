@@ -1046,7 +1046,13 @@ const CustomerDashboard = () => {
                             <TableRow
                               key={order._id}
                               className="cursor-pointer hover:bg-muted/50"
-                              onClick={() => openOrderDetail(order)}
+                              onClick={() => {
+                                if (isMobile) {
+                                  router.push(`/orders/${order._id}`);
+                                } else {
+                                  openOrderDetail(order);
+                                }
+                              }}
                             >
                               {/* <TableCell className="font-mono text-xs">{order._id}</TableCell> */}
                               <TableCell>
