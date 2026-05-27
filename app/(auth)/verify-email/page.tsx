@@ -6,7 +6,6 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MailWarning, RefreshCw, ShieldCheck } from "lucide-react";
-import { requireApiUrl } from "@/lib/api-url";
 
 function VerifyEmailPageContent() {
   const searchParams = useSearchParams();
@@ -22,9 +21,7 @@ function VerifyEmailPageContent() {
     }
   }, [initialEmail]);
 
-  const API_URL = requireApiUrl();
-
-  const resendUrl = useMemo(() => `/api/auth/resend-verify-email`, [API_URL]);
+  const resendUrl = useMemo(() => `/api/auth/resend-verify-email`, []);
 
   const handleResend = async () => {
     if (!email.trim()) {

@@ -1,6 +1,4 @@
-import { requireApiUrl } from "@/lib/api-url";
-
-export const API_URL = requireApiUrl();
+export const API_URL = "/api";
 
 export const CHART_COLORS = [
   "hsl(210, 70%, 55%)",

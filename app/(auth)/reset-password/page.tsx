@@ -7,9 +7,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { requireApiUrl } from "@/lib/api-url";
-
-const API_URL = requireApiUrl();
 
 function ResetPasswordForm() {
   const router = useRouter();

@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { requireApiUrl } from "@/lib/api-url";
 import {
   ArrowLeft,
   CreditCard,
@@ -67,8 +66,6 @@ const Payment = () => {
   const [walletLoading, setWalletLoading] = useState(true);
   // + platformFee - discount;
 
-  const API_URL = requireApiUrl();
-
   useEffect(() => {
     const fetchOrder = async () => {
       const res = await fetch(`/api/orders/${orderId}`, {
@@ -80,7 +77,6 @@ const Payment = () => {
     };
 
     const fetchWallet = async () => {
-      console.log("🔥 API_URL:", API_URL);
       const res = await fetch(`/api/wallet`, {
         credentials: "include",
       });

@@ -5,7 +5,6 @@ import Link from "next/link";
 import { XCircle, RefreshCw, Mail, Home, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { requireApiUrl } from "@/lib/api-url";
 
 const VerifyEmailError = () => {
   const [email, setEmail] = useState("");
@@ -28,7 +27,6 @@ const VerifyEmailError = () => {
     setMessageType("");
 
     try {
-      const API_URL = requireApiUrl();
       const res = await fetch(`/api/auth/resend-verify-email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

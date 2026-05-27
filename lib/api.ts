@@ -1,7 +1,3 @@
-import { requireApiUrl } from "@/lib/api-url";
-
-const API_URL = requireApiUrl();
-
 export async function apiPost<T>(
   path: string,
   body: unknown

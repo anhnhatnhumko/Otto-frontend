@@ -32,7 +32,6 @@ import { useLogout } from "@/hooks/useLogout";
 import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
 import { connectSocket } from "@/lib/socket";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { requireApiUrl } from "@/lib/api-url";
 
 
 
@@ -50,7 +49,7 @@ const AdminHeader = () => {
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
     const router = useRouter();
     const logout = useLogout();
-  const API_URL = requireApiUrl();
+  const API_URL = "/api";
 
   useEffect(() => {
     // Load persisted seen IDs so we don't treat already-seen items as new on reload

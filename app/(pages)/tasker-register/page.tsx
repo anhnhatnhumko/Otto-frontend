@@ -17,7 +17,6 @@ import {
 // import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
-import { requireApiUrl } from "@/lib/api-url";
 import {
   ArrowLeft,
   User,
@@ -76,7 +75,6 @@ const TaskerRegister = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const API_URL = requireApiUrl();
         const res = await fetch(`/api/services`, { credentials: "include" });
         if (!res.ok) return;
         const data = await res.json();
@@ -93,7 +91,6 @@ const TaskerRegister = () => {
   useEffect(() => {
     const loadProvinces = async () => {
       try {
-        const API_URL = requireApiUrl();
         const res = await fetch(`/api/locations/provinces`);
         if (!res.ok) return;
         const data = await res.json();
@@ -112,7 +109,6 @@ const TaskerRegister = () => {
     setWards([]);
     setFormData((p) => ({ ...p, district: '', city: '' }));
     try {
-      const API_URL = requireApiUrl();
       const res = await fetch(`/api/locations?provinceId=${provinceId}`);
       if (!res.ok) return;
       const data = await res.json();
@@ -159,7 +155,6 @@ const TaskerRegister = () => {
 
     setIsCheckingContact(true);
     try {
-      const API_URL = requireApiUrl();
       const query = new URLSearchParams();
       if (email) query.set('email', email);
       if (phone) query.set('phone', phone);
@@ -239,7 +234,6 @@ const TaskerRegister = () => {
         return;
       }
 
-      const API_URL = requireApiUrl();
       const payload = {
         formData: {
           ...formData,

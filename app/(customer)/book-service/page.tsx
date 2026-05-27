@@ -60,8 +60,6 @@ const getIconByName = (name: string): LucideIcon => {
       return Home;
   }
 };
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
 const paymentMethods = [
   {
     id: "wallet",
@@ -135,7 +133,7 @@ const BookService = () => {
   useEffect(() => {
     const fetchServices = async () => {
       try {
-        const res = await fetch(`${API_URL}/services`, {
+        const res = await fetch(`/api/services`, {
           credentials: "include",
         });
 

@@ -9,7 +9,7 @@ export function useAuth() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
+        const res = await fetch(`/api/auth/me`, {
           credentials: "include",
           cache: "no-store",
         });
