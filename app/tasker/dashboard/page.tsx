@@ -348,6 +348,48 @@ const TaskerDashboardContent = () => {
     await sendOrderMessage(chatOrderId, text);
   };
 
+  useEffect(() => {
+    if (!chatOpen || !chatOrderId || !userId) return;
+
+    let active = true;
+
+    const refreshChatMessages = async () => {
+      try {
+        const messages = await fetchOrderMessages(chatOrderId);
+        if (!active) return;
+
+        const mappedMessages: ChatMessage[] = messages.map((message: any) => ({
+          id: String(message._id ?? message.id ?? `${Date.now()}`),
+          fromMe: String(message.senderId ?? "") === String(userId),
+          text: String(message.text ?? ""),
+          time: new Date(message.createdAt ?? Date.now()).toLocaleTimeString("vi-VN", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          read: true,
+        }));
+
+        setChatMessages((prev) => {
+          const existingIds = new Set(prev.map((item) => item.id));
+          const next = mappedMessages.filter((item) => !existingIds.has(item.id));
+          return next.length > 0 ? [...prev, ...next] : prev;
+        });
+      } catch (error) {
+        console.error("Failed to refresh chat messages", error);
+      }
+    };
+
+    void refreshChatMessages();
+    const interval = window.setInterval(() => {
+      void refreshChatMessages();
+    }, 3000);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [chatOpen, chatOrderId, userId]);
+
   // 🔥 SETUP SOCKET LISTENERS - NEVER CLEANUP WHEN INCOMINGOB CHANGES
   useEffect(() => {
     if (!userId) return;

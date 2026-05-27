@@ -357,6 +357,45 @@ function OrderTrackingPageContent() {
     router.replace(nextUrl);
   };
 
+  useEffect(() => {
+    if (!chatOpen || !order?._id) return;
+
+    let active = true;
+
+    const refreshChatMessages = async () => {
+      try {
+        const msgs = await fetchOrderMessages(order._id);
+        if (!active) return;
+
+        const mapped = msgs.map((m: any) => ({
+          id: String(m._id ?? m.id),
+          fromMe: String(m.senderId ?? '') === String(user?.id ?? user?._id ?? ''),
+          text: m.text,
+          time: new Date(m.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+          read: true,
+        }));
+
+        setChatMessages((prev) => {
+          const existingIds = new Set(prev.map((item) => item.id));
+          const next = mapped.filter((item) => !existingIds.has(item.id));
+          return next.length > 0 ? [...prev, ...next] : prev;
+        });
+      } catch (err) {
+        console.error('Failed to refresh chat messages', err);
+      }
+    };
+
+    void refreshChatMessages();
+    const interval = window.setInterval(() => {
+      void refreshChatMessages();
+    }, 3000);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [chatOpen, order?._id, user?.id, user?._id]);
+
   const handleSendChat = async (text: string) => {
     try {
       await sendOrderMessage(String(orderId), text);
