@@ -563,7 +563,7 @@ const CustomerDashboard = () => {
     <div className="min-h-screen bg-background">
       <Header />
 
-      <main className="py-8 md:py-12">
+      <main className="py-8 pb-24 md:py-12 md:pb-12">
         <div className="container max-w-6xl">
           {/* Welcome Header */}
           <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent rounded-2xl p-6 md:p-8 mb-6">

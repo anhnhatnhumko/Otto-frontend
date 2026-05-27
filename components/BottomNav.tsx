@@ -27,8 +27,9 @@ const BottomNav = ({ activeTab, onTabChange }: BottomNavProps) => {
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-card/95 backdrop-blur-xl border-t border-border safe-area-bottom">
-      <div className="flex items-end justify-around px-2 pt-1 pb-1">
+    <nav className="fixed inset-x-0 bottom-0 z-50 md:hidden border-t border-border bg-card/95 backdrop-blur-xl safe-area-bottom overflow-x-hidden">
+      <div className="mx-auto w-full max-w-md px-2 pb-1 pt-1">
+        <div className="flex items-end justify-between gap-1">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -38,7 +39,7 @@ const BottomNav = ({ activeTab, onTabChange }: BottomNavProps) => {
               <button
                 key={item.id}
                 onClick={() => handleTabClick(item.id, item.href)}
-                className="flex flex-col items-center -mt-5"
+                className="flex flex-col items-center -mt-4 shrink-0"
               >
                 <div className="w-14 h-14 rounded-full bg-gradient-hero flex items-center justify-center shadow-lg active:scale-95 transition-transform">
                   <Icon size={26} className="text-primary-foreground" />
@@ -55,7 +56,7 @@ const BottomNav = ({ activeTab, onTabChange }: BottomNavProps) => {
               key={item.id}
               onClick={() => handleTabClick(item.id, item.href)}
               className={cn(
-                "flex flex-col items-center py-2 px-3 min-w-[60px] rounded-xl transition-colors active:scale-95",
+                "flex-1 min-w-0 flex flex-col items-center py-2 px-1 rounded-xl transition-colors active:scale-95",
                 isActive ? "text-primary" : "text-muted-foreground"
               )}
             >
@@ -72,6 +73,7 @@ const BottomNav = ({ activeTab, onTabChange }: BottomNavProps) => {
             </button>
           );
         })}
+        </div>
       </div>
     </nav>
   );
