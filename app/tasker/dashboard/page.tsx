@@ -18,7 +18,7 @@ import { getMyTaskerOrders } from "@/lib/api/order.api";
 import TaskerCompletionWaitingPopup from "@/components/tasker/TaskerCompletionWaitingPopup";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import ChatDialog, { ChatMessage } from "@/components/dialogs/ChatDialog";
-import { fetchOrderMessages } from "@/lib/api/chat";
+import { fetchOrderMessages, sendOrderMessage } from "@/lib/api/chat";
 import { connectSocket } from "@/lib/socket";
 import { handleAuthMeResponse } from "@/lib/auth-client";
 
@@ -345,11 +345,7 @@ const TaskerDashboardContent = () => {
   const handleSendChat = async (text: string) => {
     if (!chatOrderId) return;
 
-    const socket = connectSocket(userId || "", "TASKER");
-    socket.emit("chat:message", {
-      orderId: chatOrderId,
-      text,
-    });
+    await sendOrderMessage(chatOrderId, text);
   };
 
   // 🔥 SETUP SOCKET LISTENERS - NEVER CLEANUP WHEN INCOMINGOB CHANGES

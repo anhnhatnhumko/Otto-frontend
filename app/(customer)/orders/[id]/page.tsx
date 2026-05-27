@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { mapOrder } from "@/lib/mappers/order.mapper";
 import { connectSocket } from "@/lib/socket";
-import { fetchOrderMessages } from "@/lib/api/chat";
+import { fetchOrderMessages, sendOrderMessage } from "@/lib/api/chat";
 import { Badge } from "@/components/ui/badge";
 
 type RealtimeOrderPayload = {
@@ -359,8 +359,7 @@ function OrderTrackingPageContent() {
 
   const handleSendChat = async (text: string) => {
     try {
-      const socket = connectSocket(String(user?.id ?? user?._id ?? ''), String(user?.role ?? 'CUSTOMER'));
-      socket.emit('chat:message', { orderId, text });
+      await sendOrderMessage(String(orderId), text);
     } catch (err) {
       console.error('Failed to send chat', err);
     }
