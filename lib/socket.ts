@@ -37,7 +37,7 @@ export const connectSocket = (
 
   socket = io(URL, {
     withCredentials: true,
-    transports: ["websocket"],
+    transports: ["websocket", "polling"],
     auth: {
       userId,
       role,
