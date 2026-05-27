@@ -72,6 +72,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useIsMobile } from "@/hooks/use-mobile";
 import WalletCard from "@/components/wallet/WalletCard";
 import OrderStateRenderer from "@/components/orders/OrderStateRenderer";
@@ -123,6 +124,7 @@ interface Order extends MappedOrder {
 }
 
 type OrderStatusFilter = "all" | "pending" | "assigned" | "in-progress" | "completed" | "cancelled" | "timeout";
+type ProfileTab = "overview" | "orders" | "promotions" | "profile";
 
 interface Promotion {
   _id: string;
@@ -161,6 +163,8 @@ const CustomerDashboard = () => {
     phone: "",
   });
   const [savingProfile, setSavingProfile] = useState(false);
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState<ProfileTab>("overview");
 
   // Real data states
   const [profileStats, setProfileStats] = useState<any>(null);
@@ -177,6 +181,17 @@ const CustomerDashboard = () => {
   const orderPageSize = 10;
 
   const isMobile = useIsMobile();
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+
+    if (tab === "overview" || tab === "orders" || tab === "promotions" || tab === "profile") {
+      setActiveTab(tab);
+      return;
+    }
+
+    setActiveTab("overview");
+  }, [searchParams]);
 
   useEffect(() => {
     fetch(`/api/auth/me`, {
@@ -855,7 +870,7 @@ const CustomerDashboard = () => {
           )}
 
           {/* Main Tabs */}
-          <Tabs defaultValue="overview" className="space-y-6">
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ProfileTab)} className="space-y-6">
             <TabsList className="bg-card p-1 rounded-xl">
               <TabsTrigger value="overview" className="rounded-lg">
                 Tổng quan
@@ -863,9 +878,9 @@ const CustomerDashboard = () => {
               <TabsTrigger value="orders" className="rounded-lg">
                 Lịch sử đơn hàng
               </TabsTrigger>
-              {/* <TabsTrigger value="promotions" className="rounded-lg">
+              <TabsTrigger value="promotions" className="rounded-lg">
                 Ưu đãi ({promotions.length})
-              </TabsTrigger> */}
+              </TabsTrigger>
               <TabsTrigger value="profile" className="rounded-lg">
                 Thông tin cá nhân
               </TabsTrigger>
