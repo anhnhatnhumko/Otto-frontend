@@ -70,7 +70,7 @@ const TaskerProfileHeader = ({
     const fetchServices = async () => {
       try {
         const res = await fetch(
-          `/api/proxy/services?includeInactive=true`
+          `/api/services?includeInactive=true`
         );
         const data = await res.json();
         setServices(data);
@@ -108,7 +108,7 @@ const TaskerProfileHeader = ({
       const formData = new FormData();
       formData.append("file", file);
 
-      const res = await fetch("/api/proxy/users/avatar", {
+      const res = await fetch("/api/users/avatar", {
         method: "PATCH",
         body: formData,
         credentials: "include",

@@ -21,10 +21,11 @@ async function forward(req: Request, params: { slug?: string[] }) {
 
   const method = req.method;
 
-  let body: any = undefined;
+  let body: BodyInit | undefined = undefined;
   if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
     try {
-      body = await req.text();
+      const rawBody = await req.arrayBuffer();
+      body = rawBody.byteLength > 0 ? rawBody : undefined;
     } catch (e) {
       body = undefined;
     }
@@ -33,7 +34,7 @@ async function forward(req: Request, params: { slug?: string[] }) {
   const res = await fetch(target, {
     method,
     headers,
-    body: body && body.length > 0 ? body : undefined,
+    body,
   });
 
   const text = await res.text();

@@ -414,7 +414,7 @@ const CustomerDashboard = () => {
       const formData = new FormData();
       formData.append("file", file);
 
-      const res = await fetch(`/api/proxy/users/avatar`, {
+      const res = await fetch(`/api/users/avatar`, {
         method: "PATCH",
         body: formData,
         credentials: "include",
@@ -450,7 +450,7 @@ const CustomerDashboard = () => {
     }
 
     try {
-      const res = await fetch(`/api/proxy/orders/${order._id}/cancel`, {
+      const res = await fetch(`/api/orders/${order._id}/cancel`, {
         method: "PATCH",
         credentials: "include",
       });
@@ -1321,7 +1321,7 @@ const CustomerDashboard = () => {
                           }
 
                           try {
-                            const res = await fetch(`/api/proxy/customers/profile`, {
+                            const res = await fetch(`/api/customers/profile`, {
                               method: "PATCH",
                               headers: {
                                 "Content-Type": "application/json",

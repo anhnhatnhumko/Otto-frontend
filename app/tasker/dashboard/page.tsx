@@ -23,7 +23,7 @@ import { connectSocket } from "@/lib/socket";
 import { handleAuthMeResponse } from "@/lib/auth-client";
 
 const acceptOrder = async (jobId: string) => {
-  const res = await fetch(`/api/proxy/orders/${jobId}/accept`, {
+  const res = await fetch(`/api/orders/${jobId}/accept`, {
     method: "PATCH",
     credentials: "include",
   });
@@ -116,7 +116,7 @@ const TaskerDashboardContent = () => {
   useEffect(() => {
     const fetchWallet = async () => {
       try {
-        const res = await fetch(`/api/proxy/wallet`, {
+        const res = await fetch(`/api/wallet`, {
           credentials: "include",
         });
 
@@ -297,7 +297,7 @@ const TaskerDashboardContent = () => {
 
       // 🔥 MARK MESSAGES AS READ ON BACKEND
         try {
-        await fetch(`/api/proxy/chat/orders/${job.id}/messages/mark-read`, {
+        await fetch(`/api/chat/orders/${job.id}/messages/mark-read`, {
           method: "PATCH",
           credentials: "include",
         });
@@ -600,7 +600,7 @@ const TaskerDashboardContent = () => {
         }
       }
 
-      const res = await fetch(`/api/proxy/orders/${jobId}/start`, {
+      const res = await fetch(`/api/orders/${jobId}/start`, {
         method: "PATCH",
         credentials: "include",
       });
@@ -631,7 +631,7 @@ const TaskerDashboardContent = () => {
     const doReject = async () => {
       try {
         if (!selectedJob) return;
-        const res = await fetch(`/api/proxy/orders/${selectedJob.id}/reject`, {
+        const res = await fetch(`/api/orders/${selectedJob.id}/reject`, {
           method: "PATCH",
           credentials: "include",
         });
@@ -657,7 +657,7 @@ const TaskerDashboardContent = () => {
 
   const handleComplete = async (jobId: string) => {
     try {
-      const res = await fetch(`/api/proxy/orders/${jobId}/complete`, {
+      const res = await fetch(`/api/orders/${jobId}/complete`, {
         method: "PATCH",
         credentials: "include",
       });
@@ -715,7 +715,7 @@ const TaskerDashboardContent = () => {
     const doReject = async () => {
       try {
         if (!incomingJob) return;
-        const res = await fetch(`/api/proxy/orders/${incomingJob.id}/reject`, {
+        const res = await fetch(`/api/orders/${incomingJob.id}/reject`, {
           method: "PATCH",
           credentials: "include",
         });

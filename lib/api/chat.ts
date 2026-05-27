@@ -1,5 +1,5 @@
 export async function fetchOrderMessages(orderId: string, limit = 200) {
-  const res = await fetch(`/api/proxy/chat/orders/${orderId}/messages?limit=${limit}`, {
+  const res = await fetch(`/api/chat/orders/${orderId}/messages?limit=${limit}`, {
     credentials: 'include',
     cache: 'no-store',
   });
