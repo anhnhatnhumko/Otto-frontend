@@ -28,8 +28,8 @@ const BottomNav = ({ activeTab, onTabChange }: BottomNavProps) => {
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-50 md:hidden border-t border-border bg-card/95 backdrop-blur-xl safe-area-bottom overflow-x-hidden">
-      <div className="mx-auto w-full max-w-md px-2 pb-1 pt-1">
-        <div className="flex items-end justify-between gap-1">
+      <div className="mx-auto w-full max-w-md px-1 pb-safe pt-1">
+        <div className="flex items-center justify-between gap-0">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -39,10 +39,10 @@ const BottomNav = ({ activeTab, onTabChange }: BottomNavProps) => {
               <button
                 key={item.id}
                 onClick={() => handleTabClick(item.id, item.href)}
-                className="flex flex-col items-center -mt-4 shrink-0"
+                className="flex flex-col items-center -mt-3 shrink-0"
               >
-                <div className="w-14 h-14 rounded-full bg-gradient-hero flex items-center justify-center shadow-lg active:scale-95 transition-transform">
-                  <Icon size={26} className="text-primary-foreground" />
+                <div className="w-12 h-12 rounded-full bg-gradient-hero flex items-center justify-center shadow-lg active:scale-95 transition-transform">
+                  <Icon size={22} className="text-primary-foreground" />
                 </div>
                 <span className="text-[10px] mt-1 font-medium text-primary">
                   {item.label}
@@ -62,7 +62,7 @@ const BottomNav = ({ activeTab, onTabChange }: BottomNavProps) => {
             >
               <Icon size={22} strokeWidth={isActive ? 2.5 : 2} />
               <span className={cn(
-                "text-[10px] mt-1",
+                "text-[9px] mt-1",
                 isActive ? "font-semibold" : "font-medium"
               )}>
                 {item.label}

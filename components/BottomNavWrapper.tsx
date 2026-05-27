@@ -94,7 +94,7 @@ const BottomNavWrapper = () => {
     <>
       {/* Quick back-to-order FAB (mobile only) */}
       {lastOrderId && !pathname.startsWith("/orders/") && (
-        <div className="fixed right-3 bottom-28 z-50 md:hidden">
+        <div className="fixed right-3 bottom-20 z-50 md:hidden">
           <button
             onClick={() => router.push(`/orders/${lastOrderId}`)}
             className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-2 text-sm font-medium text-white shadow-lg active:scale-95 transition-transform"
