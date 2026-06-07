@@ -29,13 +29,13 @@ export default function VerifyEmailSuccess() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4">
-      <h1 className="text-2xl font-bold text-green-600 text-center">
+      <h1 className="text-2xl font-bold text-foreground text-center">
         🎉 Xác thực email thành công!
       </h1>
-      <p className="mt-2 text-gray-600 text-center">
+      <p className="mt-2 text-muted-foreground text-center">
         Bạn có thể đăng nhập và sử dụng dịch vụ của chúng tôi.
       </p>
-      <p className="mt-3 text-sm text-gray-700">
+      <p className="mt-3 text-sm text-muted-foreground">
         Tự động chuyển đến đăng nhập sau <span className="font-semibold text-primary">{countdown}s</span>...
       </p>
       <Link

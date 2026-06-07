@@ -53,7 +53,7 @@ const AdminReviews = () => {
   const getStatusBadge = (status: string) => {
     const config: Record<string, { label: string; className: string }> = {
       published: { label: "Hiển thị", className: "bg-green-100 text-green-800 border-green-200" },
-      hidden: { label: "Đã ẩn", className: "bg-gray-100 text-gray-800 border-gray-200" },
+      hidden: { label: "Đã ẩn", className: "bg-muted text-muted-foreground border-border" },
       flagged: { label: "Cần xem xét", className: "bg-yellow-100 text-yellow-800 border-yellow-200" },
     };
     const c = config[status] || { label: status, className: "" };

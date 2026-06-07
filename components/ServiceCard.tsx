@@ -43,7 +43,7 @@ export default function ServiceCard(props: ServiceCardProps) {
   return (
     <div
       onClick={handleClick}
-      className="cursor-pointer rounded-xl bg-white p-6 shadow-card hover:shadow-card-hover transition"
+      className="cursor-pointer rounded-xl bg-card p-6 shadow-card hover:shadow-card-hover transition"
     >
       {/* Icon */}
       <div className="mb-4 flex items-center justify-center">

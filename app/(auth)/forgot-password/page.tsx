@@ -47,7 +47,7 @@ export default function ForgotPassword() {
   return (
     <div>
       {/* Back */}
-      <Link href="/login" className="text-sm text-gray-500 flex items-center mb-6">
+      <Link href="/login" className="text-sm text-muted-foreground flex items-center mb-6">
         ← Quay lại đăng nhập
       </Link>
 
@@ -56,16 +56,16 @@ export default function ForgotPassword() {
         <div className="h-9 w-9 rounded-lg bg-gradient-hero text-white flex items-center justify-center font-bold">
           O
         </div>
-        <span className="text-xl font-bold text-gray-900">Otto</span>
+        <span className="text-xl font-bold text-foreground">Otto</span>
       </div>
 
       {!isSubmitted ? (
         <>
           {/* Title */}
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="text-3xl font-bold text-foreground mb-2">
             Quên mật khẩu?
           </h1>
-          <p className="text-gray-500 mb-8">
+          <p className="text-muted-foreground mb-8">
             Nhập email của bạn và chúng tôi sẽ gửi hướng dẫn đặt lại mật khẩu
           </p>
 
@@ -112,12 +112,12 @@ export default function ForgotPassword() {
               <CheckCircle className="h-8 w-8 text-blue-600" />
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-3">
+          <h1 className="text-2xl font-bold text-foreground mb-3">
             Kiểm tra email của bạn
           </h1>
-          <p className="text-gray-500 mb-6">
+          <p className="text-muted-foreground mb-6">
             Chúng tôi đã gửi hướng dẫn đặt lại mật khẩu đến{" "}
-            <span className="font-medium text-gray-900">{email}</span>
+            <span className="font-medium text-foreground">{email}</span>
           </p>
           <div className="space-y-3">
             <button
@@ -133,12 +133,12 @@ export default function ForgotPassword() {
                 setIsSubmitted(false);
                 setEmail("");
               }}
-              className="w-full rounded-xl border border-gray-200 py-3 font-medium"
+              className="w-full rounded-xl border border-border py-3 font-medium"
             >
               Gửi lại email
             </button>
           </div>
-          <p className="mt-6 text-sm text-gray-500">
+          <p className="mt-6 text-sm text-muted-foreground">
             Không nhận được email?{" "}
             <button
               type="button"
@@ -156,7 +156,7 @@ export default function ForgotPassword() {
 
       {/* Help text */}
       {!isSubmitted && (
-        <p className="mt-8 text-center text-sm text-gray-500">
+        <p className="mt-8 text-center text-sm text-muted-foreground">
           Nhớ mật khẩu?{" "}
           <Link href="/login" className="text-blue-600 font-medium">
             Đăng nhập ngay

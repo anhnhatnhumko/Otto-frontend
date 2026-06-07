@@ -51,7 +51,7 @@ export default function LoginPage() {
   return (
     <div>
       {/* Back */}
-      <Link href="/" className="text-sm text-gray-500 flex items-center mb-6">
+      <Link href="/" className="text-sm text-muted-foreground flex items-center mb-6">
         ← Về trang chủ
       </Link>
 
@@ -60,14 +60,14 @@ export default function LoginPage() {
         <div className="h-9 w-9 rounded-lg bg-gradient-hero text-white flex items-center justify-center font-bold">
           O
         </div>
-        <span className="text-xl font-bold text-gray-900">Otto</span>
+        <span className="text-xl font-bold text-foreground">Otto</span>
       </div>
 
       {/* Title */}
-      <h1 className="text-3xl font-bold text-gray-900 mb-2">
+      <h1 className="text-3xl font-bold text-foreground mb-2">
         Chào mừng trở lại!
       </h1>
-      <p className="text-gray-500 mb-8">
+      <p className="text-muted-foreground mb-8">
         Đăng nhập để tiếp tục sử dụng dịch vụ
       </p>
 
@@ -141,24 +141,24 @@ export default function LoginPage() {
       </form>
 
       {/* Divider */}
-      <div className="my-6 flex items-center gap-4 text-sm text-gray-400">
-        <div className="h-px flex-1 bg-gray-200" />
+      <div className="my-6 flex items-center gap-4 text-sm text-muted-foreground">
+        <div className="h-px flex-1 bg-border" />
         Hoặc
-        <div className="h-px flex-1 bg-gray-200" />
+        <div className="h-px flex-1 bg-border" />
       </div>
 
       {/* Social */}
       <div className="grid grid-cols-2 gap-4">
-        <button className="rounded-xl border border-gray-200 py-3 font-medium">
+        <button className="rounded-xl border border-border py-3 font-medium">
           Google
         </button>
-        <button className="rounded-xl border border-gray-200 py-3 font-medium">
+        <button className="rounded-xl border border-border py-3 font-medium">
           Facebook
         </button>
       </div>
 
       {/* Switch */}
-      <p className="mt-8 text-center text-sm text-gray-500">
+      <p className="mt-8 text-center text-sm text-muted-foreground">
         Chưa có tài khoản?{" "}
         <Link href="/register" className="text-blue-600 font-medium">
           Đăng ký ngay

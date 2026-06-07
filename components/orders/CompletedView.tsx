@@ -165,13 +165,6 @@ const CompletedView = ({ order, onRate, onRebook }: CompletedViewProps) => {
               <h4 className="text-sm font-semibold text-foreground uppercase tracking-wider">Thông tin đơn hàng</h4>
               <div className="bg-muted/50 rounded-xl p-4 space-y-3">
                 <div className="flex items-start gap-3">
-                  <FileText size={16} className="text-primary mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Mã đơn hàng</p>
-                    <p className="text-sm font-medium text-foreground font-mono">{order._id}</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
                   <Clock size={16} className="text-primary mt-0.5 shrink-0" />
                   <div>
                     <p className="text-xs text-muted-foreground">Ngày & giờ thực hiện</p>

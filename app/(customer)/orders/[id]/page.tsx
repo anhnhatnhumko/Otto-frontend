@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useParams, usePathname, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
-import BottomNav from "@/components/BottomNav";
+// import BottomNav from "@/components/BottomNav";
 import OrderStateRenderer from "@/components/orders/OrderStateRenderer";
 import OverdueOrderPopup from "@/components/OverdueOrderPopup";
 import ChatDialog from "@/components/dialogs/ChatDialog";
@@ -482,7 +482,7 @@ function OrderTrackingPageContent() {
         </div>
       </main>
 
-      {isMobile && <BottomNav activeTab="orders" onTabChange={() => {}} />}
+      {/* {isMobile && <BottomNav activeTab="orders" onTabChange={() => {}} />} */}
 
       <ChatDialog
         open={chatOpen}

@@ -189,12 +189,6 @@ const WalletVerifyContent = () => {
 
               <div className="bg-muted rounded-xl p-4 mb-6 text-left space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Mã đơn hàng</span>
-                  <span className="font-medium text-foreground">
-                    OT{Date.now().toString().slice(-8)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
                   <span className="text-muted-foreground">Dịch vụ</span>
                   <span className="font-medium text-foreground">
                     {order?.serviceSnapshot?.name || "Dịch vụ"}

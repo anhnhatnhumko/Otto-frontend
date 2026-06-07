@@ -1,11 +1,20 @@
 "use client";
 
+import GlobalNotificationPopup from "@/components/customer/GlobalNotificationPopup";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+
+type TaskerUser = {
+  _id?: string;
+  id?: string;
+  role?: string;
+  mustChangePassword?: boolean;
+};
 
 export default function TaskerLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [checking, setChecking] = useState(true);
+  const [user, setUser] = useState<TaskerUser | null>(null);
 
   useEffect(() => {
     const guardTaskerAccess = async () => {
@@ -20,17 +29,19 @@ export default function TaskerLayout({ children }: { children: React.ReactNode }
           return;
         }
 
-        const user = await response.json();
+        const nextUser = (await response.json()) as TaskerUser;
 
-        if (user?.role !== "TASKER") {
+        if (nextUser?.role !== "TASKER") {
           router.replace("/login");
           return;
         }
 
-        if (user?.mustChangePassword) {
+        if (nextUser?.mustChangePassword) {
           router.replace("/change-password?firstLogin=1");
           return;
         }
+
+        setUser(nextUser);
       } catch {
         router.replace("/login");
         return;
@@ -39,7 +50,7 @@ export default function TaskerLayout({ children }: { children: React.ReactNode }
       }
     };
 
-    guardTaskerAccess();
+    void guardTaskerAccess();
   }, [router]);
 
   if (checking) {
@@ -50,5 +61,17 @@ export default function TaskerLayout({ children }: { children: React.ReactNode }
     );
   }
 
-  return <>{children}</>;
+  if (!user || user.role !== "TASKER") {
+    return null;
+  }
+
+  const userId = String(user._id ?? user.id ?? "");
+  const userRole = String(user.role ?? "TASKER");
+
+  return (
+    <>
+      {children}
+      <GlobalNotificationPopup userId={userId} role={userRole} />
+    </>
+  );
 }

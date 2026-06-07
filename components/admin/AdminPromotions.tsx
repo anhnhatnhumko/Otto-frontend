@@ -55,7 +55,7 @@ const AdminPromotions = () => {
     const config: Record<string, { label: string; className: string }> = {
       active: { label: "Đang hoạt động", className: "bg-green-100 text-green-800 border-green-200" },
       expired: { label: "Hết hạn", className: "bg-red-100 text-red-800 border-red-200" },
-      disabled: { label: "Tạm dừng", className: "bg-gray-100 text-gray-800 border-gray-200" },
+      disabled: { label: "Tạm dừng", className: "bg-muted text-muted-foreground border-border" },
     };
     const c = config[status] || { label: status, className: "" };
     return <Badge variant="outline" className={c.className}>{c.label}</Badge>;

@@ -67,18 +67,18 @@ export default function RegisterPage() {
           <div className="h-9 w-9 rounded-lg bg-gradient-hero text-white flex items-center justify-center font-bold">
             O
           </div>
-          <span className="text-xl font-bold text-gray-900">Otto</span>
+          <span className="text-xl font-bold text-foreground">Otto</span>
         </div>
 
         <div className="rounded-2xl border border-green-200 bg-green-50 p-5">
           <h1 className="text-2xl font-bold text-center mb-2">
             Đăng ký thành công 
           </h1>
-          <p className="text-sm text-gray-700 leading-6">
+          <p className="text-sm text-muted-foreground leading-6">
             Hệ thống đã gửi email xác thực đến <span className="font-semibold">{email}</span>.
             Vui lòng kiểm tra hộp thư (và cả thư rác) để xác thực tài khoản trước khi đăng nhập.
           </p>
-          <p className="mt-4 text-sm font-medium text-gray-800">
+          <p className="mt-4 text-sm font-medium text-foreground">
             Tự động chuyển đến trang đăng nhập sau <span className="text-primary">{redirectCountdown}s</span>...
           </p>
         </div>
@@ -101,7 +101,7 @@ export default function RegisterPage() {
       {/* Back */}
       <Link
         href="/login"
-        className="text-sm text-gray-500 flex items-center mb-6"
+        className="text-sm text-muted-foreground flex items-center mb-6"
       >
         ← Quay lại đăng nhập
       </Link>
@@ -111,14 +111,14 @@ export default function RegisterPage() {
         <div className="h-9 w-9 rounded-lg bg-gradient-hero text-white flex items-center justify-center font-bold">
           O
         </div>
-        <span className="text-xl font-bold text-gray-900">Otto</span>
+        <span className="text-xl font-bold text-foreground">Otto</span>
       </div>
 
       {/* Title */}
-      <h1 className="text-3xl font-bold text-gray-900 mb-2">
+      <h1 className="text-3xl font-bold text-foreground mb-2">
         Tạo tài khoản mới
       </h1>
-      <p className="text-gray-500 mb-8">Đăng ký để bắt đầu sử dụng dịch vụ</p>
+      <p className="text-muted-foreground mb-8">Đăng ký để bắt đầu sử dụng dịch vụ</p>
 
       {/* Form */}
       <form className="space-y-4" onSubmit={handleRegister}>
@@ -220,7 +220,7 @@ export default function RegisterPage() {
       </form>
 
       {/* Switch */}
-      <p className="mt-8 text-center text-sm text-gray-500">
+      <p className="mt-8 text-center text-sm text-muted-foreground">
         Đã có tài khoản?{" "}
         <Link href="/login" className="text-blue-600 font-medium">
           Đăng nhập

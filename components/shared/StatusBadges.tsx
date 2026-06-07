@@ -15,14 +15,14 @@ const ORDER_STATUS_CONFIG: Record<string, StatusConfig> = {
 
 const USER_STATUS_CONFIG: Record<string, StatusConfig> = {
   active: { label: "Hoạt động", className: "bg-green-100 text-green-800 border-green-200" },
-  inactive: { label: "Không hoạt động", className: "bg-gray-100 text-gray-800 border-gray-200" },
+  inactive: { label: "Không hoạt động", className: "bg-muted text-muted-foreground border-border" },
   banned: { label: "Đã khóa", className: "bg-red-100 text-red-800 border-red-200" },
 };
 
 const TASKER_STATUS_CONFIG: Record<string, StatusConfig> = {
   pending: { label: "Chờ duyệt", className: "bg-yellow-100 text-yellow-800 border-yellow-200" },
   active: { label: "Đang hoạt động", className: "bg-green-100 text-green-800 border-green-200" },
-  inactive: { label: "Tạm nghỉ", className: "bg-gray-100 text-gray-800 border-gray-200" },
+  inactive: { label: "Tạm nghỉ", className: "bg-muted text-muted-foreground border-border" },
   banned: { label: "Đã khóa", className: "bg-red-100 text-red-800 border-red-200" },
 };
 
@@ -50,7 +50,7 @@ export function ServiceStatusBadge({ status }: { status: string }) {
       Hoạt động
     </Badge>
   ) : (
-    <Badge variant="outline" className="bg-gray-100 text-gray-800 border-gray-200">
+    <Badge variant="outline" className="bg-muted text-muted-foreground border-border">
       Tạm dừng
     </Badge>
   );

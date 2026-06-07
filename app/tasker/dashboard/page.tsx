@@ -879,11 +879,6 @@ const TaskerDashboardContent = () => {
       socket.off("order:updated", handleFullUpdate);
       socket.off("order:cancelled", handleCancelled);
       socket.off("order:kept", handleKept);
-      try {
-        socket.disconnect();
-      } catch (e) {
-        // ignore
-      }
     };
   }, [userId, incomingJob]);
 

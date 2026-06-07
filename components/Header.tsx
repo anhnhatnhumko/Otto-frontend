@@ -3,14 +3,16 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Menu, X } from "lucide-react";
+import { Menu, Moon, Sun, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useLogout } from "@/hooks/useLogout";
 import { useUserStore } from "@/app/store/useUserStore";
 import { NotificationCenter } from "./NotificationCenter";
+import { useTheme } from "next-themes";
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const { user, setUser } = useUserStore();
   const [loadingUser, setLoadingUser] = useState(true);
 
@@ -18,6 +20,9 @@ const Header = () => {
   const logout = useLogout();
 
   const isActive = (path: string) => pathname === path;
+  const { resolvedTheme, setTheme } = useTheme();
+  const toggleTheme = () =>
+    setTheme(resolvedTheme === "dark" ? "light" : "dark");
 
   const navLinks = [
     { name: "Trang chủ", path: "/" },
@@ -26,6 +31,10 @@ const Header = () => {
   ];
 
   // ✅ Lấy user từ /auth/me bằng cookie (credentials: include)
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     fetch(`/api/auth/me`, {
       credentials: "include", // 👈 QUAN TRỌNG
@@ -70,6 +79,18 @@ const Header = () => {
         </nav>
 
         <div className="hidden md:flex items-center gap-4">
+          <button
+            onClick={toggleTheme}
+            className="p-2.5 rounded-xl hover:bg-muted transition-colors"
+            aria-label="Chuyển đổi sáng/tối"
+            disabled={!mounted}
+          >
+            {mounted && resolvedTheme === "dark" ? (
+              <Sun size={18} className="text-foreground" />
+            ) : (
+              <Moon size={18} className="text-foreground" />
+            )}
+          </button>
           {loadingUser ? null : !user ? (
             <>
               <Link href="/login">
@@ -117,6 +138,18 @@ const Header = () => {
           <div>
             <NotificationCenter />
           </div>
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-lg hover:bg-muted transition-colors"
+            aria-label="Chuyển đổi sáng/tối"
+            disabled={!mounted}
+          >
+            {mounted && resolvedTheme === "dark" ? (
+              <Sun size={24} className="text-foreground" />
+            ) : (
+              <Moon size={24} className="text-foreground" />
+            )}
+          </button>
           <button
             className="p-2 rounded-lg hover:bg-muted transition-colors"
             onClick={() => setIsMenuOpen(!isMenuOpen)}

@@ -6,7 +6,7 @@ import { useOverdueOrder } from "@/hooks/useOverdueOrder";
 import { connectSocket } from "@/lib/socket";
 import { Bell, MessageCircle, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type RealtimeNotification = {
   _id?: string;
@@ -29,7 +29,6 @@ export default function GlobalNotificationPopup({ userId, role }: Props) {
   const pathname = usePathname();
   const { toast } = useToast();
   const [queue, setQueue] = useState<RealtimeNotification[]>([]);
-  const [active, setActive] = useState<RealtimeNotification | null>(null);
   const shownIds = useRef<Set<string>>(new Set());
 
   const {
@@ -41,7 +40,7 @@ export default function GlobalNotificationPopup({ userId, role }: Props) {
     handleCancelOrder,
   } = useOverdueOrder();
 
-  const markNotificationRead = async (notificationId?: string) => {
+  const markNotificationRead = useCallback(async (notificationId?: string) => {
     const id = String(notificationId ?? "");
     if (!id) return;
 
@@ -53,35 +52,41 @@ export default function GlobalNotificationPopup({ userId, role }: Props) {
     } catch {
       return;
     }
-  };
+  }, []);
 
-  const handleOverdueNotification = async (notification: RealtimeNotification) => {
-    const orderId = String(notification?.orderId ?? "");
-    if (!orderId) return;
+  const handleOverdueNotification = useCallback(
+    async (notification: RealtimeNotification) => {
+      const orderId = String(notification?.orderId ?? "");
+      if (!orderId) return;
 
-    try {
-      const res = await fetch(`/api/orders/${orderId}`, {
-        credentials: "include",
-        cache: "no-store",
-      });
+      try {
+        const res = await fetch(`/api/orders/${orderId}`, {
+          credentials: "include",
+          cache: "no-store",
+        });
 
-      if (!res.ok) return;
+        if (!res.ok) return;
 
-      const order = await res.json();
-      showOverduePopup(order);
-      await markNotificationRead(notification._id);
-    } catch {
-      return;
-    }
-  };
+        const order = await res.json();
+        showOverduePopup(order);
+        await markNotificationRead(notification._id);
+      } catch {
+        return;
+      }
+    },
+    [markNotificationRead, showOverduePopup],
+  );
 
-  const handleCompletionNotification = (notification: RealtimeNotification) => {
-    const orderId = String(notification?.orderId ?? "");
-    if (!orderId) return;
+  const handleCompletionNotification = useCallback(
+    (notification: RealtimeNotification) => {
+      const orderId = String(notification?.orderId ?? "");
+      if (!orderId) return;
 
-    void markNotificationRead(notification._id);
-    void router.push(`/orders/${orderId}`);
-  };
+      void markNotificationRead(notification._id);
+      void router.push(`/orders/${orderId}`);
+    },
+    [markNotificationRead, router],
+  );
 
   useEffect(() => {
     if (!userId) return;
@@ -95,12 +100,14 @@ export default function GlobalNotificationPopup({ userId, role }: Props) {
         shownIds.current.add(id);
       }
 
-      if (String(notification?.type ?? "").toLowerCase() === "order_overdue_warning") {
+      const notificationType = String(notification?.type ?? "").toLowerCase();
+
+      if (notificationType === "order_overdue_warning") {
         void handleOverdueNotification(notification);
         return;
       }
 
-      if (String(notification?.type ?? "").toLowerCase() === "order_completed_confirmation") {
+      if (notificationType === "order_completed_confirmation") {
         handleCompletionNotification(notification);
         return;
       }
@@ -113,36 +120,61 @@ export default function GlobalNotificationPopup({ userId, role }: Props) {
     return () => {
       socket.off("notification:new", handleNewNotification);
     };
-  }, [userId, role]);
+  }, [handleCompletionNotification, handleOverdueNotification, role, userId]);
 
-  useEffect(() => {
-    if (active || queue.length === 0) return;
-    setActive(queue[0]);
+  const active = queue[0] ?? null;
+  const dismissActive = useCallback(() => {
     setQueue((prev) => prev.slice(1));
-  }, [active, queue]);
+  }, []);
 
   useEffect(() => {
     if (!active) return;
+
     const timer = window.setTimeout(() => {
-      setActive(null);
+      dismissActive();
     }, POPUP_AUTO_CLOSE_MS);
 
     return () => {
       window.clearTimeout(timer);
     };
-  }, [active]);
+  }, [active, dismissActive]);
 
-  const isChatMessage = useMemo(
-    () => String(active?.type ?? "").toLowerCase() === "chat_message",
+  const activeType = useMemo(
+    () => String(active?.type ?? "").toLowerCase(),
     [active],
   );
+  const isChatMessage = activeType === "chat_message";
+  const isOrderCancelled = activeType === "order_cancelled";
+  const isTaskerSurface = role === "TASKER" || pathname.startsWith("/tasker");
+  const actionLabel = isChatMessage
+    ? "Mở chat"
+    : isTaskerSurface
+      ? "Về dashboard"
+      : "Xem chi tiết";
 
   const handleOpen = async () => {
     const orderId = String(active?.orderId ?? "");
     await markNotificationRead(active?._id);
 
+    if (isTaskerSurface) {
+      if (isChatMessage && orderId) {
+        const target = `/tasker/dashboard?chat=true&orderId=${orderId}`;
+        if (pathname !== target) {
+          router.push(target);
+        }
+        dismissActive();
+        return;
+      }
+
+      if (pathname !== "/tasker/dashboard") {
+        router.push("/tasker/dashboard");
+      }
+      dismissActive();
+      return;
+    }
+
     if (!orderId) {
-      setActive(null);
+      dismissActive();
       return;
     }
 
@@ -151,7 +183,7 @@ export default function GlobalNotificationPopup({ userId, role }: Props) {
       if (pathname !== target) {
         router.push(target);
       }
-      setActive(null);
+      dismissActive();
       return;
     }
 
@@ -159,7 +191,7 @@ export default function GlobalNotificationPopup({ userId, role }: Props) {
     if (pathname !== target) {
       router.push(target);
     }
-    setActive(null);
+    dismissActive();
   };
 
   return (
@@ -172,15 +204,20 @@ export default function GlobalNotificationPopup({ userId, role }: Props) {
                 {isChatMessage ? (
                   <MessageCircle className="h-5 w-5 text-blue-600" />
                 ) : (
-                  <Bell className="h-5 w-5 text-orange-500" />
+                  <Bell
+                    className={`h-5 w-5 ${
+                      isOrderCancelled ? "text-red-600" : "text-orange-500"
+                    }`}
+                  />
                 )}
                 <p className="text-sm font-semibold line-clamp-1">
-                  {active.title || "Thông báo mới"}
+                  {active.title ||
+                    (isOrderCancelled ? "Khách hàng đã hủy đơn" : "Thông báo mới")}
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setActive(null)}
+                onClick={dismissActive}
                 className="rounded p-1 hover:bg-muted"
                 aria-label="Đóng popup"
               >
@@ -189,16 +226,22 @@ export default function GlobalNotificationPopup({ userId, role }: Props) {
             </div>
 
             <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
-              {active.content || active.senderName || "Bạn có một cập nhật mới"}
+              {active.content ||
+                active.senderName ||
+                (isOrderCancelled
+                  ? "Đơn hàng bạn đã nhận vừa được khách hàng hủy."
+                  : "Bạn có một cập nhật mới")}
             </p>
 
             <div className="mt-3 flex justify-end">
               <button
                 type="button"
                 onClick={handleOpen}
-                className="inline-flex items-center rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
+                className={`inline-flex items-center rounded-md px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 ${
+                  isOrderCancelled ? "bg-red-600" : "bg-primary"
+                }`}
               >
-                {isChatMessage ? "Mở chat" : "Xem chi tiết"}
+                {actionLabel}
               </button>
             </div>
           </div>
@@ -220,7 +263,8 @@ export default function GlobalNotificationPopup({ userId, role }: Props) {
           } catch (err) {
             toast({
               title: "Lỗi",
-              description: err instanceof Error ? err.message : "Không thể giữ đơn hàng",
+              description:
+                err instanceof Error ? err.message : "Không thể giữ đơn hàng",
               variant: "destructive",
             });
           }
@@ -237,7 +281,8 @@ export default function GlobalNotificationPopup({ userId, role }: Props) {
           } catch (err) {
             toast({
               title: "Lỗi",
-              description: err instanceof Error ? err.message : "Không thể hủy đơn hàng",
+              description:
+                err instanceof Error ? err.message : "Không thể hủy đơn hàng",
               variant: "destructive",
             });
           }

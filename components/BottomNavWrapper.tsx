@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
-import BottomNav from "./BottomNav";
+// import BottomNav from "./BottomNav";
 
 type TabId = "overview" | "orders" | "book" | "promotions" | "profile";
 
@@ -40,10 +40,6 @@ const BottomNavWrapper = () => {
     setActiveTab("overview");
   }, [pathname, searchParams]);
 
-  // If current pathname matches any hide prefix, do not render BottomNav
-  const shouldHide = hideOnPrefixes.some((p) => pathname.startsWith(p));
-  if (shouldHide) return null;
-
   // Track last visited order id so we can offer a quick 'back to order' action
   const [lastOrderId, setLastOrderId] = useState<string | null>(null);
 
@@ -64,6 +60,10 @@ const BottomNavWrapper = () => {
       setLastOrderId(null);
     }
   }, [pathname]);
+
+  // If current pathname matches any hide prefix, do not render BottomNav
+  const shouldHide = hideOnPrefixes.some((p) => pathname.startsWith(p));
+  if (shouldHide) return null;
 
   const handleTabChange = (tab: string) => {
     // coerce to known tab values
@@ -104,7 +104,7 @@ const BottomNavWrapper = () => {
           </button>
         </div>
       )}
-      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
+      {/* <BottomNav activeTab={activeTab} onTabChange={handleTabChange} /> */}
     </>
   );
 };

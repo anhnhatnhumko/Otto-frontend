@@ -49,7 +49,7 @@ const AdminNotifications = () => {
     const config: Record<string, { label: string; className: string }> = {
       sent: { label: "Đã gửi", className: "bg-green-100 text-green-800 border-green-200" },
       scheduled: { label: "Đã lên lịch", className: "bg-blue-100 text-blue-800 border-blue-200" },
-      draft: { label: "Bản nháp", className: "bg-gray-100 text-gray-800 border-gray-200" },
+      draft: { label: "Bản nháp", className: "bg-muted text-muted-foreground border-border" },
     };
     const c = config[status] || { label: status, className: "" };
     return <Badge variant="outline" className={c.className}>{c.label}</Badge>;
@@ -130,9 +130,9 @@ const AdminNotifications = () => {
               <div className="text-2xl font-bold text-blue-700">{notifications.filter(n => n.status === "scheduled").length}</div>
               <p className="text-xs text-blue-600">Đã lên lịch</p>
             </div>
-            <div className="p-4 rounded-lg bg-gray-50 border border-gray-200 text-center">
-              <div className="text-2xl font-bold text-gray-700">{notifications.filter(n => n.status === "draft").length}</div>
-              <p className="text-xs text-gray-600">Bản nháp</p>
+            <div className="p-4 rounded-lg bg-muted border border-border text-center">
+              <div className="text-2xl font-bold text-muted-foreground">{notifications.filter(n => n.status === "draft").length}</div>
+              <p className="text-xs text-muted-foreground opacity-75">Bản nháp</p>
             </div>
           </div>
 

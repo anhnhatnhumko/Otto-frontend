@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -11,9 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -24,17 +25,16 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Wallet,
+  AlertCircle,
+  ArrowLeft,
   ArrowUpRight,
   Building2,
   CheckCircle2,
   Clock,
-  XCircle,
-  AlertCircle,
-  ArrowLeft,
   Plus,
+  Wallet,
+  XCircle,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 
 interface BankAccount {
   _id: string;
@@ -44,24 +44,16 @@ interface BankAccount {
   isDefault: boolean;
 }
 
-interface WithdrawHistory {
-  id: string;
-  amount: number;
-  bankName: string;
-  accountNumber: string;
-  status: "pending" | "processing" | "completed" | "failed";
-  createdAt: string;
-  completedAt?: string;
-  note?: string;
-}
-
-type User = {
+interface WalletTransaction {
   _id: string;
-  fullName: string;
-  email: string;
-  role?: string;
-  avatar?: string;
-};
+  amount: number;
+  bankName?: string;
+  accountNumber?: string;
+  status: "PENDING" | "SUCCESS" | "FAILED";
+  createdAt: string;
+  note?: string;
+  type: string;
+}
 
 const quickAmounts = [100000, 200000, 500000, 1000000, 2000000, 5000000];
 
@@ -78,132 +70,91 @@ const banks = [
   "VIB",
 ];
 
+const formatCurrency = (value: number) =>
+  `${new Intl.NumberFormat("vi-VN").format(value)}đ`;
+
+const formatDate = (date: string) => new Date(date).toLocaleDateString("vi-VN");
+
+const maskAccount = (accountNumber?: string) =>
+  accountNumber ? `****${accountNumber.slice(-4)}` : "xxxx xxxx xxxx";
+
 const TaskerWithdraw = () => {
-  const mask = (acc: string) =>
-    acc ? "****" + acc.slice(-4) : "xxxx xxxx xxxx";
-  const formatDate = (date: string) =>
-    new Date(date).toLocaleDateString("vi-VN");
-  const { toast } = useToast();
   const router = useRouter();
+  const { toast } = useToast();
+
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [selectedBank, setSelectedBank] = useState<BankAccount | null>(null);
+  const [balance, setBalance] = useState(0);
+  const [history, setHistory] = useState<WalletTransaction[]>([]);
+  const [loading, setLoading] = useState(true);
+
   const [amount, setAmount] = useState("");
   const [showAddBank, setShowAddBank] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [balance, setBalance] = useState(0);
-  useEffect(() => {
-    fetch(`/api/bank-accounts`, {
-      credentials: "include",
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        const list = Array.isArray(data) ? data : data.data || [];
-        setBankAccounts(list);
-      });
-  }, []);
-
-  useEffect(() => {
-    if (bankAccounts.length > 0) {
-      const defaultBank =
-        bankAccounts.find((b) => b.isDefault) || bankAccounts[0];
-
-      setSelectedBank(defaultBank);
-    }
-  }, [bankAccounts]);
-
-
-  useEffect(() => {
-    fetch(`/api/wallet`, {
-      credentials: "include",
-    })
-      .then((res) => res.json())
-      .then((data) => setBalance(data.balance));
-  }, []);
-
-  const [history, setHistory] = useState([]);
-
-  useEffect(() => {
-    fetch(`/api/wallet/transactions`, {
-      credentials: "include",
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        const withdraws = data.filter((tx: any) => tx.type === "WITHDRAW");
-        setHistory(withdraws);
-      });
-  }, []);
+  const [isRequestingOtp, setIsRequestingOtp] = useState(false);
 
   const [newBankName, setNewBankName] = useState("");
   const [newAccountNumber, setNewAccountNumber] = useState("");
   const [newAccountHolder, setNewAccountHolder] = useState("");
-  const [me, setMe] = useState<User | null>(null);
-  const [loadingMe, setLoadingMe] = useState(true);
-
-  const formatCurrency = (n: number) =>
-    new Intl.NumberFormat("vi-VN").format(n) + "đ";
-
-  const parsedAmount = parseInt(amount.replace(/\D/g, "")) || 0;
-  const isValidAmount = parsedAmount >= 50000 && parsedAmount <= balance;
-
-  const handleAmountChange = (value: string) => {
-    const num = value.replace(/\D/g, "");
-    setAmount(num ? new Intl.NumberFormat("vi-VN").format(parseInt(num)) : "");
-  };
-
-  const handleQuickAmount = (val: number) => {
-    if (val <= balance) {
-      setAmount(new Intl.NumberFormat("vi-VN").format(val));
-    }
-  };
 
   useEffect(() => {
-    fetch(`/api/auth/me`, {
-      credentials: "include", 
-    })
-    .then((res) => {
-      if (!res.ok) throw new Error("Unauthorized");
-      return res.json();
-    })
-    .then((data) => {
-      setMe(data);
-    })
-    .catch(() => {
-      router.push("/login");
-    })
-    .finally(() => {
-      setLoadingMe(false);
-    });
-  }, []);
+    const fetchInitialData = async () => {
+      try {
+        const [banksRes, walletRes, txRes] = await Promise.all([
+          fetch("/api/bank-accounts", { credentials: "include" }),
+          fetch("/api/wallet", { credentials: "include" }),
+          fetch("/api/wallet/transactions", { credentials: "include" }),
+        ]);
 
-  const handleWithdraw = async () => {
-    try {
-      const res = await fetch(`/api/wallet/withdraw`, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          amount: parsedAmount,
-          bankName: selectedBank?.bankName,
-          accountNumber: selectedBank?.accountNumber.replace(/\s/g, ""),
-        }),
-      });
+        const banksData = await banksRes.json();
+        const walletData = await walletRes.json();
+        const txData = await txRes.json();
 
-      const data = await res.json();
+        const bankList = Array.isArray(banksData) ? banksData : banksData?.data || [];
+        const withdrawHistory = Array.isArray(txData)
+          ? txData.filter((tx: WalletTransaction) => tx.type === "WITHDRAW")
+          : [];
 
-      if (!res.ok) throw new Error(data.message);
+        setBankAccounts(bankList);
+        setBalance(Number(walletData?.balance ?? 0));
+        setHistory(withdrawHistory);
+      } catch {
+        toast({
+          title: "Không thể tải ví",
+          description: "Vui lòng thử lại sau ít phút.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
 
-      setShowConfirm(false);
-      setShowSuccess(true);
-      setAmount("");
-    } catch (err: any) {
-      toast({
-        title: "Lỗi rút tiền",
-        description: err.message || "Có lỗi xảy ra",
-        variant: "destructive",
-      });
+    void fetchInitialData();
+  }, [toast]);
+
+  useEffect(() => {
+    if (bankAccounts.length === 0) return;
+    setSelectedBank(
+      bankAccounts.find((account) => account.isDefault) || bankAccounts[0],
+    );
+  }, [bankAccounts]);
+
+  const parsedAmount = useMemo(
+    () => parseInt(amount.replace(/\D/g, ""), 10) || 0,
+    [amount],
+  );
+
+  const isValidAmount =
+    parsedAmount >= 50000 && parsedAmount <= balance && Boolean(selectedBank);
+
+  const handleAmountChange = (value: string) => {
+    const digits = value.replace(/\D/g, "");
+    setAmount(digits ? new Intl.NumberFormat("vi-VN").format(parseInt(digits, 10)) : "");
+  };
+
+  const handleQuickAmount = (value: number) => {
+    if (value <= balance) {
+      setAmount(new Intl.NumberFormat("vi-VN").format(value));
     }
   };
 
@@ -211,7 +162,7 @@ const TaskerWithdraw = () => {
     try {
       if (!newBankName || !newAccountNumber || !newAccountHolder) return;
 
-      const res = await fetch(`/api/bank-accounts`, {
+      const res = await fetch("/api/bank-accounts", {
         method: "POST",
         credentials: "include",
         headers: {
@@ -226,59 +177,108 @@ const TaskerWithdraw = () => {
 
       const data = await res.json();
 
-      if (!res.ok) throw new Error(data.message);
+      if (!res.ok) {
+        throw new Error(data.message || "Không thể thêm tài khoản");
+      }
 
-      toast({
-        title: "Thêm tài khoản thành công!",
-        description: `${newBankName} - ${newAccountNumber}`,
-      });
-
-      // 🔥 update UI ngay (không cần reload)
       setBankAccounts((prev) => [...prev, data]);
-
       setShowAddBank(false);
       setNewBankName("");
       setNewAccountNumber("");
       setNewAccountHolder("");
-    } catch (err: any) {
+
+      toast({
+        title: "Đã thêm tài khoản",
+        description: `${data.bankName} • ${maskAccount(data.accountNumber)}`,
+      });
+    } catch (error) {
       toast({
         title: "Lỗi thêm tài khoản",
-        description: err.message || "Có lỗi xảy ra",
+        description:
+          error instanceof Error ? error.message : "Có lỗi xảy ra, thử lại nhé.",
         variant: "destructive",
       });
     }
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "SUCCESS":
-        return <CheckCircle2 size={16} className="text-green-600" />;
-      case "PENDING":
-        return <Clock size={16} className="text-yellow-600" />;
-      case "FAILED":
-        return <XCircle size={16} className="text-destructive" />;
-      default:
-        return null;
+  const handleRequestOtp = async () => {
+    if (!selectedBank) return;
+
+    try {
+      setIsRequestingOtp(true);
+
+      const res = await fetch("/api/wallet/withdraw/request", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          amount: parsedAmount,
+          bankName: selectedBank.bankName,
+          accountNumber: selectedBank.accountNumber.replace(/\s/g, ""),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || "Không thể gửi OTP");
+      }
+
+      const params = new URLSearchParams({
+        transactionId: String(data.transactionId ?? ""),
+        amount: String(parsedAmount),
+        bankName: selectedBank.bankName,
+        accountNumber: selectedBank.accountNumber,
+      });
+
+      setShowConfirm(false);
+      router.push(`/tasker/withdraw/verify?${params.toString()}`);
+    } catch (error) {
+      toast({
+        title: "Không thể gửi OTP",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Có lỗi xảy ra khi tạo yêu cầu rút tiền.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRequestingOtp(false);
     }
   };
 
-  const getStatusLabel = (status: string) => {
+  const getStatusIcon = (status: WalletTransaction["status"]) => {
+    switch (status) {
+      case "SUCCESS":
+        return <CheckCircle2 size={16} className="text-green-600 dark:text-green-300" />;
+      case "PENDING":
+        return <Clock size={16} className="text-amber-500 dark:text-amber-300" />;
+      case "FAILED":
+        return <XCircle size={16} className="text-red-600 dark:text-red-300" />;
+      default:
+        return <Clock size={16} className="text-muted-foreground" />;
+    }
+  };
+
+  const getStatusLabel = (status: WalletTransaction["status"]) => {
     switch (status) {
       case "SUCCESS":
         return (
-          <Badge className="bg-green-100 text-green-700 border-green-200">
+          <Badge className="border border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-200">
             Thành công
           </Badge>
         );
       case "PENDING":
         return (
-          <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">
+          <Badge className="border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200">
             Đang xử lý
           </Badge>
         );
       case "FAILED":
         return (
-          <Badge className="bg-red-100 text-red-700 border-red-200">
+          <Badge className="border border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-200">
             Thất bại
           </Badge>
         );
@@ -291,101 +291,102 @@ const TaskerWithdraw = () => {
     <div className="min-h-screen bg-background">
       <Header />
 
-      <main className="py-6 md:py-12">
-        <div className="container max-w-2xl px-4">
-          {/* Back */}
+      <main className="bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.08),_transparent_38%)] py-5 md:py-10">
+        <div className="container mx-auto max-w-2xl px-3 sm:px-4">
           <button
             onClick={() => router.push("/tasker/wallet")}
-            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors"
+            className="mb-4 flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft size={18} />
             Quay lại ví
           </button>
 
-          {/* Balance Card */}
-          <Card className="overflow-hidden mb-6">
-            <div className="bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-500 text-white p-6">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+          <Card className="mb-6 overflow-hidden rounded-3xl border-border/70 bg-card/95 shadow-lg">
+            <div className="bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-500 p-5 text-white sm:p-6">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20">
                   <Wallet size={20} />
                 </div>
                 <div>
-                  <p className="text-sm opacity-80">Thu nhập khả dụng</p>
-                  <p className="text-3xl font-bold">
-                    {formatCurrency(balance)}
+                  <p className="text-sm text-white/80">Thu nhập khả dụng</p>
+                  <p className="text-2xl font-bold sm:text-3xl">
+                    {loading ? "..." : formatCurrency(balance)}
                   </p>
                 </div>
               </div>
             </div>
           </Card>
 
-          {/* Withdraw Form */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <ArrowUpRight size={20} className="text-emerald-600" />
+          <Card className="mb-6 rounded-3xl border-border/70 bg-card/95 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <ArrowUpRight size={20} className="text-emerald-600 dark:text-emerald-300" />
                 Rút tiền về ngân hàng
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-5">
-              {/* Bank Selection */}
+              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-200">
+                Mỗi lần rút tiền sẽ cần xác nhận OTP gửi về email của bạn để giữ an
+                toàn cho ví.
+              </div>
+
               <div className="space-y-2">
-                <Label className="text-sm font-medium">
-                  Tài khoản nhận tiền
-                </Label>
-                <div className="space-y-2">
-                  {bankAccounts.map((bank) => (
-                    <button
-                      key={bank._id}
-                      onClick={() => setSelectedBank(bank)}
-                      className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${
-                        selectedBank?._id === bank._id
-                          ? "border-emerald-500 bg-emerald-50 ring-1 ring-emerald-200"
-                          : "border-border hover:border-emerald-300"
-                      }`}
-                    >
-                      <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                        <Building2
-                          size={18}
-                          className="text-muted-foreground"
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-foreground">
-                            {bank.bankName}
-                          </p>
-                          {bank.isDefault && (
-                            <Badge
-                              variant="secondary"
-                              className="text-[10px] px-1.5 py-0"
-                            >
-                              Mặc định
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {bank.accountNumber} • {bank.accountHolder}
-                        </p>
-                      </div>
-                      <div
-                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                          selectedBank?._id === bank._id
-                            ? "border-emerald-500"
-                            : "border-border"
+                <Label className="text-sm font-medium">Tài khoản nhận tiền</Label>
+                <div className="space-y-2.5">
+                  {bankAccounts.map((bank) => {
+                    const isActive = selectedBank?._id === bank._id;
+
+                    return (
+                      <button
+                        key={bank._id}
+                        onClick={() => setSelectedBank(bank)}
+                        className={`w-full rounded-2xl border p-3 text-left transition-all ${
+                          isActive
+                            ? "border-emerald-500/50 bg-emerald-500/10 ring-1 ring-emerald-500/20"
+                            : "border-border bg-card hover:border-emerald-400/40"
                         }`}
                       >
-                        {selectedBank?._id === bank._id && (
-                          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                        )}
-                      </div>
-                    </button>
-                  ))}
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted">
+                            <Building2 size={18} className="text-muted-foreground" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-medium text-foreground">
+                                {bank.bankName}
+                              </p>
+                              {bank.isDefault && (
+                                <Badge
+                                  variant="secondary"
+                                  className="text-[10px] font-medium"
+                                >
+                                  Mặc định
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="break-all text-xs text-muted-foreground">
+                              {bank.accountNumber} • {bank.accountHolder}
+                            </p>
+                          </div>
+                          <div
+                            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${
+                              isActive ? "border-emerald-500" : "border-border"
+                            }`}
+                          >
+                            {isActive && (
+                              <div className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+
                   <button
                     onClick={() => setShowAddBank(true)}
-                    className="w-full flex items-center gap-3 p-3 rounded-xl border border-dashed border-border hover:border-emerald-400 transition-colors"
+                    className="flex w-full items-center gap-3 rounded-2xl border border-dashed border-border bg-card p-3 text-left transition-colors hover:border-emerald-400/50"
                   >
-                    <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
                       <Plus size={18} className="text-muted-foreground" />
                     </div>
                     <p className="text-sm text-muted-foreground">
@@ -395,136 +396,142 @@ const TaskerWithdraw = () => {
                 </div>
               </div>
 
-              {/* Amount */}
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Số tiền rút</Label>
                 <div className="relative">
                   <Input
                     placeholder="Nhập số tiền"
                     value={amount}
-                    onChange={(e) => handleAmountChange(e.target.value)}
-                    className="text-lg font-semibold pr-10 h-12"
+                    onChange={(event) => handleAmountChange(event.target.value)}
+                    inputMode="numeric"
+                    className="h-12 pr-10 text-lg font-semibold"
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                     đ
                   </span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-muted-foreground">
-                    Tối thiểu: 50.000đ
-                  </p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">Tối thiểu: 50.000đ</p>
                   <button
                     onClick={() => handleQuickAmount(balance)}
-                    className="text-xs text-emerald-600 font-medium hover:underline"
+                    className="text-xs font-medium text-emerald-600 hover:underline dark:text-emerald-300"
                   >
                     Rút tất cả
                   </button>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                   {quickAmounts
-                    .filter((a) => a <= balance)
-                    .map((val) => (
+                    .filter((value) => value <= balance)
+                    .map((value) => (
                       <button
-                        key={val}
-                        onClick={() => handleQuickAmount(val)}
-                        className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${
-                          parsedAmount === val
-                            ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                            : "border-border text-muted-foreground hover:border-emerald-300"
+                        key={value}
+                        onClick={() => handleQuickAmount(value)}
+                        className={`rounded-xl border px-3 py-2 text-sm font-medium transition-all ${
+                          parsedAmount === value
+                            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200"
+                            : "border-border bg-card text-muted-foreground hover:border-emerald-400/40"
                         }`}
                       >
-                        {formatCurrency(val)}
+                        {formatCurrency(value)}
                       </button>
                     ))}
                 </div>
               </div>
 
-              {/* Warnings */}
               {parsedAmount > 0 && parsedAmount < 50000 && (
-                <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-                  <AlertCircle size={16} className="shrink-0 mt-0.5" />
-                  <span>Số tiền rút tối thiểu là 50.000đ</span>
-                </div>
-              )}
-              {parsedAmount > balance && (
-                <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-                  <AlertCircle size={16} className="shrink-0 mt-0.5" />
-                  <span>Số tiền rút vượt quá thu nhập khả dụng</span>
+                <div className="flex items-start gap-2 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-200">
+                  <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                  <span>Số tiền rút tối thiểu là 50.000đ.</span>
                 </div>
               )}
 
-              {/* Fee info */}
-              <div className="p-3 rounded-lg bg-muted/50 text-sm space-y-1">
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Phí rút tiền</span>
-                  <span className="font-medium text-green-600">Miễn phí</span>
+              {parsedAmount > balance && (
+                <div className="flex items-start gap-2 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-200">
+                  <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                  <span>Số tiền rút vượt quá thu nhập khả dụng.</span>
                 </div>
-                <div className="flex justify-between text-muted-foreground">
+              )}
+
+              <div className="space-y-2 rounded-2xl border border-border/70 bg-muted/40 p-4 text-sm dark:bg-slate-900/50">
+                <div className="flex justify-between gap-4 text-muted-foreground">
+                  <span>Phí rút tiền</span>
+                  <span className="font-medium text-green-600 dark:text-green-300">
+                    Miễn phí
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4 text-muted-foreground">
                   <span>Thời gian xử lý</span>
                   <span>1-3 ngày làm việc</span>
                 </div>
-                {parsedAmount > 0 && isValidAmount && (
-                  <div className="flex justify-between text-foreground font-medium pt-1 border-t border-border">
-                    <span>Số tiền nhận được</span>
-                    <span>{formatCurrency(parsedAmount)}</span>
-                  </div>
-                )}
+                <div className="flex justify-between gap-4 border-t border-border pt-2 font-medium text-foreground">
+                  <span>Số tiền nhận được</span>
+                  <span>{formatCurrency(parsedAmount || 0)}</span>
+                </div>
               </div>
 
               <Button
                 size="lg"
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
-                disabled={!isValidAmount || !selectedBank}
+                className="h-auto min-h-12 w-full whitespace-normal bg-emerald-600 py-3 text-white hover:bg-emerald-700"
+                disabled={!isValidAmount}
                 onClick={() => setShowConfirm(true)}
               >
-                {isValidAmount && selectedBank
-                  ? `Rút ${formatCurrency(parsedAmount)}`
+                {isValidAmount
+                  ? `Nhận mã OTP để rút ${formatCurrency(parsedAmount)}`
                   : "Nhập thông tin để rút tiền"}
               </Button>
             </CardContent>
           </Card>
 
-          {/* History */}
-          <Card>
+          <Card className="rounded-3xl border-border/70 bg-card/95 shadow-sm">
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
                 <Clock size={20} className="text-muted-foreground" />
                 Lịch sử rút tiền
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {history.map((item: any) => (
-                  <div
-                    key={item._id}
-                    className="flex items-center gap-3 p-3 rounded-xl bg-muted/30"
-                  >
-                    <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center shrink-0">
-                      {getStatusIcon(item.status)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground">
-                        {item.bankName} • {mask(item.accountNumber)}
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <p className="text-xs text-muted-foreground">
-                          {formatDate(item.createdAt)}
-                        </p>
-                        {getStatusLabel(item.status)}
+              {history.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-border/70 px-4 py-10 text-center text-sm text-muted-foreground">
+                  Chưa có lần rút tiền nào.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {history.map((item) => (
+                    <div
+                      key={item._id}
+                      className="rounded-2xl border border-border/60 bg-muted/30 p-3 dark:bg-slate-900/40"
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted dark:bg-slate-800">
+                            {getStatusIcon(item.status)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="break-all text-sm font-medium text-foreground">
+                              {item.bankName || "Ngân hàng"} • {maskAccount(item.accountNumber)}
+                            </p>
+                            <div className="mt-1 flex flex-wrap items-center gap-2">
+                              <p className="text-xs text-muted-foreground">
+                                {formatDate(item.createdAt)}
+                              </p>
+                              {getStatusLabel(item.status)}
+                            </div>
+                            {item.note && (
+                              <p className="mt-1 text-xs text-red-600 dark:text-red-300">
+                                {item.note}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <span className="text-sm font-semibold text-foreground sm:ml-auto">
+                          -{formatCurrency(Math.abs(item.amount))}
+                        </span>
                       </div>
-                      {item.note && (
-                        <p className="text-xs text-destructive mt-1">
-                          {item.note}
-                        </p>
-                      )}
                     </div>
-                    <span className="text-sm font-semibold text-foreground whitespace-nowrap">
-                      -{formatCurrency(Math.abs(item.amount))}
-                    </span>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -532,69 +539,59 @@ const TaskerWithdraw = () => {
 
       <Footer />
 
-      {/* Confirm Dialog */}
       <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm rounded-2xl border-border/70">
           <DialogHeader>
             <DialogTitle>Xác nhận rút tiền</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="flex justify-between text-sm">
+
+          <div className="space-y-3 py-2 text-sm">
+            <div className="flex justify-between gap-4">
               <span className="text-muted-foreground">Số tiền</span>
               <span className="font-semibold text-foreground">
                 {formatCurrency(parsedAmount)}
               </span>
             </div>
-            <div className="flex justify-between text-sm">
+            <div className="flex justify-between gap-4">
               <span className="text-muted-foreground">Ngân hàng</span>
-              <span className="font-medium text-foreground">
-                {selectedBank?.bankName}
-              </span>
+              <span className="font-medium text-foreground">{selectedBank?.bankName}</span>
             </div>
-            <div className="flex justify-between text-sm">
+            <div className="flex justify-between gap-4">
               <span className="text-muted-foreground">Số tài khoản</span>
-              <span className="font-medium text-foreground">
-                {selectedBank?.accountNumber}
-              </span>
+              <span className="font-medium text-foreground">{selectedBank?.accountNumber}</span>
             </div>
-            <div className="flex justify-between text-sm">
+            <div className="flex justify-between gap-4">
               <span className="text-muted-foreground">Chủ tài khoản</span>
-              <span className="font-medium text-foreground">
-                {selectedBank?.accountHolder}
-              </span>
+              <span className="font-medium text-foreground">{selectedBank?.accountHolder}</span>
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Phí</span>
-              <span className="font-medium text-green-600">Miễn phí</span>
-            </div>
-            <div className="h-px bg-border" />
-            <div className="flex justify-between">
-              <span className="font-medium text-foreground">Nhận được</span>
-              <span className="text-lg font-bold text-emerald-600">
-                {formatCurrency(parsedAmount)}
-              </span>
+
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-800 dark:text-emerald-200">
+              Mã OTP sẽ được gửi về email đăng ký của bạn. Tiền chỉ bị trừ sau khi xác
+              nhận OTP thành công.
             </div>
           </div>
-          <DialogFooter className="gap-2">
+
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
             <Button variant="outline" onClick={() => setShowConfirm(false)}>
               Hủy
             </Button>
             <Button
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
-              onClick={handleWithdraw}
+              className="bg-emerald-600 text-white hover:bg-emerald-700"
+              onClick={handleRequestOtp}
+              disabled={isRequestingOtp}
             >
-              Xác nhận rút tiền
+              {isRequestingOtp ? "Đang gửi OTP..." : "Nhận mã OTP"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Add Bank Dialog */}
       <Dialog open={showAddBank} onOpenChange={setShowAddBank}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm rounded-2xl border-border/70">
           <DialogHeader>
             <DialogTitle>Thêm tài khoản ngân hàng</DialogTitle>
           </DialogHeader>
+
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label>Ngân hàng</Label>
@@ -611,119 +608,41 @@ const TaskerWithdraw = () => {
                 </SelectContent>
               </Select>
             </div>
+
             <div className="space-y-2">
               <Label>Số tài khoản</Label>
               <Input
                 placeholder="Nhập số tài khoản"
                 value={newAccountNumber}
-                onChange={(e) => setNewAccountNumber(e.target.value)}
+                inputMode="numeric"
+                onChange={(event) => setNewAccountNumber(event.target.value)}
               />
             </div>
+
             <div className="space-y-2">
               <Label>Chủ tài khoản</Label>
               <Input
                 placeholder="VD: TRAN VAN BINH"
                 value={newAccountHolder}
-                onChange={(e) =>
-                  setNewAccountHolder(e.target.value.toUpperCase())
+                onChange={(event) =>
+                  setNewAccountHolder(event.target.value.toUpperCase())
                 }
               />
             </div>
           </div>
-          <DialogFooter>
+
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
             <Button variant="outline" onClick={() => setShowAddBank(false)}>
               Hủy
             </Button>
             <Button
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="bg-emerald-600 text-white hover:bg-emerald-700"
               onClick={handleAddBank}
               disabled={!newBankName || !newAccountNumber || !newAccountHolder}
             >
               Thêm tài khoản
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showSuccess} onOpenChange={setShowSuccess}>
-        <DialogContent className="max-w-sm text-center">
-          <div className="flex flex-col items-center py-4 space-y-4">
-            <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
-              <CheckCircle2 size={36} className="text-green-600" />
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-xl font-bold text-foreground">
-                Yêu cầu rút tiền thành công!
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Yêu cầu của bạn đã được ghi nhận và đang chờ xử lý
-              </p>
-            </div>
-
-            <div className="w-full p-4 rounded-xl bg-muted/50 space-y-2.5 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Số tiền rút</span>
-                <span className="font-semibold text-foreground">
-                  {formatCurrency(parsedAmount)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Ngân hàng</span>
-                <span className="font-medium text-foreground">
-                  {selectedBank?.bankName}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Số tài khoản</span>
-                <span className="font-medium text-foreground">
-                  {selectedBank?.accountNumber}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Chủ tài khoản</span>
-                <span className="font-medium text-foreground">
-                  {selectedBank?.accountHolder}
-                </span>
-              </div>
-              <div className="h-px bg-border" />
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Thời gian dự kiến</span>
-                <span className="font-medium text-foreground">
-                  1-3 ngày làm việc
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-2 w-full p-3 rounded-lg bg-emerald-50 text-sm text-muted-foreground">
-              <AlertCircle
-                size={16}
-                className="shrink-0 mt-0.5 text-emerald-600"
-              />
-              <span>
-                Bạn sẽ nhận được thông báo khi giao dịch hoàn tất. Vui lòng kiểm
-                tra tài khoản ngân hàng sau 1-3 ngày làm việc.
-              </span>
-            </div>
-
-            <div className="flex gap-2 w-full pt-2">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setShowSuccess(false)}
-              >
-                Đóng
-              </Button>
-              <Button
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                onClick={() => {
-                  setShowSuccess(false);
-                  router.push("/tasker/wallet");
-                }}
-              >
-                Về ví
-              </Button>
-            </div>
-          </div>
         </DialogContent>
       </Dialog>
     </div>
