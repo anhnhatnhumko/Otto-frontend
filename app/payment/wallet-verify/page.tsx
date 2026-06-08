@@ -27,9 +27,10 @@ const WalletVerifyContent = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const transactionId = searchParams.get("transactionId");
+  const initialTransactionId = searchParams.get("transactionId") || "";
   const orderId = searchParams.get("orderId");
   const totalAmount = Number(searchParams.get("amount") || 0);
+  const [transactionId, setTransactionId] = useState(initialTransactionId);
   const [order, setOrder] = useState<WalletVerifyOrder | null>(null);
 
   const [otp, setOtp] = useState<string[]>(["", "", "", "", "", ""]);
@@ -104,13 +105,25 @@ const WalletVerifyContent = () => {
 
   const handleResend = async () => {
     try {
-      await fetch(`/api/orders/wallet/create-payment`, {
+      const res = await fetch(`/api/orders/wallet/create-payment`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orderId }),
       });
 
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.message || "KhÃ´ng thá»ƒ gá»­i láº¡i OTP");
+      }
+
+      const nextTransactionId = String(data?.transactionId ?? "");
+      if (!nextTransactionId) {
+        throw new Error("Thiáº¿u mÃ£ giao dá»‹ch OTP má»›i");
+      }
+
+      setTransactionId(nextTransactionId);
       setCountdown(60);
       setCanResend(false);
       setOtp(["", "", "", "", "", ""]);

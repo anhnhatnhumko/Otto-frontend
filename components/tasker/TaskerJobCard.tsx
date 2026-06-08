@@ -201,15 +201,56 @@ const TaskerJobCard = ({
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+            <div className="space-y-2 lg:hidden">
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onChat?.(job)}
+                  className="relative h-11 w-full"
+                >
+                  <MessageCircle size={14} />
+                  <span>Nhắn tin</span>
+                  {unreadCount > 0 && (
+                    <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  )}
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onDetail?.(job)}
+                  className="h-11 w-full"
+                >
+                  Chi tiết
+                </Button>
+              </div>
+
+              <Button
+                variant="hero"
+                size="sm"
+                disabled={!startStatus.allowed}
+                title={startStatus.message}
+                onClick={() => onStart?.(job.id)}
+                className="h-auto min-h-11 w-full whitespace-normal px-4 py-3 text-sm leading-snug disabled:bg-muted disabled:text-foreground disabled:opacity-100 dark:disabled:bg-slate-800"
+              >
+                {startStatus.allowed ? "Bắt đầu làm việc" : startStatus.message}
+              </Button>
+            </div>
+
+            <div className="hidden lg:flex lg:flex-wrap lg:items-center lg:gap-3">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => onChat?.(job)}
-                className="relative h-11 w-full"
+                className="relative"
               >
-                <MessageCircle size={14} />
-                <span>Nhắn tin</span>
+                <div className="flex items-center gap-1">
+                  <MessageCircle size={14} />
+                  <span>Nhắn tin</span>
+                </div>
                 {unreadCount > 0 && (
                   <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
                     {unreadCount > 9 ? "9+" : unreadCount}
@@ -221,22 +262,21 @@ const TaskerJobCard = ({
                 variant="outline"
                 size="sm"
                 onClick={() => onDetail?.(job)}
-                className="h-11 w-full"
               >
                 Chi tiết
               </Button>
-            </div>
 
-            <Button
-              variant="hero"
-              size="sm"
-              disabled={!startStatus.allowed}
-              title={startStatus.message}
-              onClick={() => onStart?.(job.id)}
-              className="h-auto min-h-11 w-full whitespace-normal px-4 py-3 text-sm leading-snug disabled:bg-muted disabled:text-foreground disabled:opacity-100 dark:disabled:bg-slate-800"
-            >
-              {startStatus.allowed ? "Bắt đầu làm việc" : startStatus.message}
-            </Button>
+              <Button
+                variant="hero"
+                size="sm"
+                disabled={!startStatus.allowed}
+                title={startStatus.message}
+                onClick={() => onStart?.(job.id)}
+                className="px-4 disabled:bg-muted disabled:text-foreground disabled:opacity-100 dark:disabled:bg-slate-800"
+              >
+                {startStatus.allowed ? "Bắt đầu làm việc" : startStatus.message}
+              </Button>
+            </div>
           </div>
         )}
 

@@ -263,6 +263,7 @@ export function TaskersTab({
   useEffect(() => {
     try {
       const socket = connectSocket('admin', 'ADMIN');
+      if (!socket) return;
 
       const handleCreated = (payload: any) => {
         const item = payload?.data ?? payload;

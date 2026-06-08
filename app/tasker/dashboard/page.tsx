@@ -306,7 +306,7 @@ const TaskerDashboardContent = () => {
       }
 
       const socket = connectSocket(userId || "", "TASKER");
-      socket.emit("order:join", {
+      socket?.emit("order:join", {
         orderId: job.id,
         userId: userId || "",
         role: "TASKER",
@@ -352,6 +352,7 @@ const TaskerDashboardContent = () => {
     if (!userId || !chatOpen || !chatOrderId) return;
 
     const socket = connectSocket(userId, "TASKER");
+    if (!socket) return;
     const joinChatRoom = () => {
       socket.emit("order:join", {
         orderId: chatOrderId,
@@ -415,6 +416,7 @@ const TaskerDashboardContent = () => {
     if (!userId) return;
 
     const socket = connectSocket(userId, "TASKER");
+    if (!socket) return;
 
     // 🔥 HANDLE REALTIME CANCEL NOTIFICATION FROM CUSTOMER
     const handleOrderCancelled = (payload: any) => {
@@ -484,6 +486,7 @@ const TaskerDashboardContent = () => {
     if (!userId) return;
 
     const socket = connectSocket(userId, "TASKER");
+    if (!socket) return;
 
     const handleIncomingChatMessage = (message: any) => {
       const incomingOrderId = String(message?.orderId ?? "");
@@ -801,6 +804,7 @@ const TaskerDashboardContent = () => {
     if (!userId || !incomingJob) return;
 
     const socket = connectSocket(userId, "TASKER");
+    if (!socket) return;
 
     const orderId = incomingJob.id;
 
@@ -908,22 +912,47 @@ const TaskerDashboardContent = () => {
 
           <button
             onClick={() => router.push("/tasker/wallet")}
-            className="w-full flex items-center gap-3 p-4 bg-emerald-50 hover:bg-emerald-100 rounded-xl mb-6 transition-colors group"
+            className="group relative mb-6 flex w-full items-center gap-3 overflow-hidden rounded-3xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/12 via-card to-card p-4 text-left shadow-sm transition-all hover:border-emerald-400/40 hover:shadow-md active:scale-[0.99] dark:from-emerald-500/15 dark:via-slate-900/95 dark:to-slate-950/95"
           >
-            <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+            <div className="absolute -right-10 -top-10 h-24 w-24 rounded-full bg-emerald-400/10 blur-2xl" />
+            <div className="absolute -bottom-8 -left-6 h-20 w-20 rounded-full bg-teal-400/10 blur-2xl" />
+            <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/15 text-[0px] text-emerald-700 after:text-base after:font-bold after:text-emerald-700 after:content-['₫'] dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-200 dark:after:text-emerald-200">
               <span className="text-emerald-600 font-bold text-sm">₫</span>
             </div>
-            <div className="flex-1 text-left">
-              <p className="text-sm font-semibold text-foreground">
+            <div className="pointer-events-none absolute left-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-200">
+              <span className="text-[11px] font-bold tracking-[0.08em]">VND</span>
+            </div>
+            <div className="relative min-w-0 flex-1 pl-0 text-left">
+              <div className="mb-1 flex flex-wrap items-center gap-2">
+                <p className="hidden text-sm font-semibold text-foreground">
+                  
                 Ví của Tasker
               </p>
-              <p className="text-xs text-muted-foreground">
+                <span className="hidden rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:border-emerald-400/20 dark:text-emerald-200">
+                  OTP bảo vệ
+                </span>
+                <p className="text-sm font-semibold text-foreground">
+                  Vi Tasker
+                </p>
+                <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:border-emerald-400/20 dark:text-emerald-200">
+                  OTP bao ve
+                </span>
+              </div>
+              <p className="hidden text-xs text-muted-foreground">
                 Quản lý thu nhập & rút tiền
               </p>
+              <p className="text-xs text-muted-foreground">
+                Quan ly thu nhap, lich su giao dich va rut tien an toan.
+              </p>
             </div>
-            <span className="text-lg font-bold text-emerald-600">
-              {walletLoading ? "..." : formatCurrency(walletBalance)}
-            </span>
+            <div className="relative shrink-0 text-right">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                Số dư
+              </p>
+              <span className="block text-lg font-bold text-emerald-700 transition-transform group-hover:-translate-y-0.5 dark:text-emerald-200 sm:text-xl">
+                {walletLoading ? "..." : formatCurrency(walletBalance)}
+              </span>
+            </div>
           </button>
 
           <Tabs defaultValue="assigned" className="space-y-6">

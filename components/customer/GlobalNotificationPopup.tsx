@@ -92,6 +92,7 @@ export default function GlobalNotificationPopup({ userId, role }: Props) {
     if (!userId) return;
 
     const socket = connectSocket(userId, role);
+    if (!socket) return;
 
     const handleNewNotification = (notification: RealtimeNotification) => {
       const id = String(notification?._id ?? "");

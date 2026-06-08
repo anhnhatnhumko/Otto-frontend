@@ -67,6 +67,7 @@ const AdminHeader = () => {
     // connect as ADMIN to receive admin events
     try {
       const socket = connectSocket("admin", "ADMIN");
+      if (!socket) return;
 
       const handleNew = (payload: any) => {
         // payload may be the created document, or { success, data }, or other wrapper

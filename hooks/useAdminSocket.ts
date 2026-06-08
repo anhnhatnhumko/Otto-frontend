@@ -42,6 +42,7 @@ export function useAdminSocket({
     if (!identity) return;
 
     const socket = connectSocket(identity.userId, identity.role);
+    if (!socket) return;
 
     const joinAdminRoom = () => {
       socket.emit(ADMIN_SOCKET_EVENTS.JOIN, {

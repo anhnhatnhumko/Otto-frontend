@@ -63,6 +63,7 @@ export default function NotificationBell() {
         if (!userId) return;
 
         const socket = connectSocket(userId, role);
+        if (!socket) return;
         socketRef.current = socket;
 
         handleNewNotification = (notification: Notification) => {

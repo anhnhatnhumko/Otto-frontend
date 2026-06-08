@@ -269,6 +269,15 @@ function OrderTrackingPageContent() {
     if (authLoading || !userId) return;
 
     const socket = connectSocket(userId, userRole);
+    if (!socket) {
+      const pollInterval = window.setInterval(() => {
+        void fetchOrder(true);
+      }, 15000);
+
+      return () => {
+        window.clearInterval(pollInterval);
+      };
+    }
     const currentOrderId = String(orderId);
     const joinOrderRoom = () => {
       socket.emit("order:join", {

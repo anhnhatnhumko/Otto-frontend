@@ -4,38 +4,58 @@ import { requireApiUrl } from "@/lib/api-url";
 let socket: Socket | null = null;
 let socketIdentityKey: string | null = null;
 
-const buildIdentityKey = (userId?: string) =>
-  `${userId ?? "anonymous"}`;
+const buildIdentityKey = (userId?: string, role?: string) =>
+  `${userId ?? "anonymous"}:${String(role ?? "UNKNOWN").toUpperCase()}`;
+
+const readCookieToken = () => {
+  if (typeof document === "undefined") {
+    return undefined;
+  }
+
+  return document.cookie
+    .split("; ")
+    .find((cookie) => cookie.startsWith("accessToken="))
+    ?.split("=")[1];
+};
 
 export const connectSocket = (
   userId: string,
   role: string,
   token?: string,
 ) => {
-  const URL = requireApiUrl();
+  let apiUrl = "";
 
-  const nextIdentityKey = buildIdentityKey(userId);
-  if (
-    socket &&
-    (socket.connected || socket.active) &&
-    socketIdentityKey === nextIdentityKey
-  ) {
+  try {
+    apiUrl = requireApiUrl();
+  } catch (error) {
+    console.error("Socket disabled because NEXT_PUBLIC_API_URL is invalid.", error);
+    return null;
+  }
+
+  const nextIdentityKey = buildIdentityKey(userId, role);
+  const actualToken = token || readCookieToken();
+
+  if (socket && socketIdentityKey === nextIdentityKey) {
+    socket.auth = {
+      userId,
+      role,
+      ...(actualToken ? { token: actualToken } : {}),
+    };
+
+    if (!socket.connected && !socket.active) {
+      socket.connect();
+    }
+
     return socket;
   }
 
-  if (socket) {
-    socket.removeAllListeners();
+  if (socket && socketIdentityKey !== nextIdentityKey) {
     socket.disconnect();
     socket = null;
+    socketIdentityKey = null;
   }
 
-  // Lấy token từ cookie nếu không được truyền vào
-  const actualToken = token || 
-    (typeof document !== 'undefined' 
-      ? document.cookie.split('; ').find(c => c.startsWith('accessToken='))?.split('=')[1] 
-      : undefined);
-
-  socket = io(URL, {
+  socket = io(apiUrl, {
     withCredentials: true,
     transports: ["websocket", "polling"],
     timeout: 20000,
@@ -60,7 +80,7 @@ export const connectSocket = (
 
   socket.on("connect", () => {
     if (process.env.NODE_ENV === "development") {
-      console.log("🟢 SOCKET CONNECTED:", socket?.id);
+      console.log("[socket] connected", socket?.id);
     }
 
     if (String(role).toUpperCase() === "ADMIN") {
@@ -70,21 +90,19 @@ export const connectSocket = (
 
   socket.on("disconnect", () => {
     if (process.env.NODE_ENV === "development") {
-      console.log("🔴 SOCKET DISCONNECTED");
+      console.log("[socket] disconnected");
     }
   });
 
-  socket.on("connect_error", (err) => {
+  socket.on("connect_error", (error) => {
     if (process.env.NODE_ENV === "development") {
-      console.log("❌ SOCKET ERROR:", err.message);
+      console.log("[socket] connect_error", error.message);
     }
   });
 
   return socket;
 };
 
-
-// optional
 export const getSocket = () => socket;
 
 export const isSocketConnected = () => Boolean(socket?.connected);
