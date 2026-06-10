@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { Suspense, useState, useEffect, useMemo } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -21,6 +21,7 @@ import ChatDialog, { ChatMessage } from "@/components/dialogs/ChatDialog";
 import { fetchOrderMessages, sendOrderMessage } from "@/lib/api/chat";
 import { connectSocket } from "@/lib/socket";
 import { handleAuthMeResponse } from "@/lib/auth-client";
+import { Wallet } from "lucide-react";
 
 const acceptOrder = async (jobId: string) => {
   const res = await fetch(`/api/orders/${jobId}/accept`, {
@@ -94,7 +95,7 @@ const TaskerDashboardContent = () => {
   }, [router]);
 
   // =========================
-  // 🟢 STATE HELPERS
+  // STATE HELPERS
   // =========================
   const upsertJob = (job: Job) => {
     setJobs((prev) => {
@@ -122,10 +123,10 @@ const TaskerDashboardContent = () => {
 
         const data = await res.json();
 
-        console.log("🔥 WALLET DATA:", data);
+        console.log("Wallet data:", data);
 
         setWalletBalance(data.balance || 0);
-        setWalletBalance((prev) => prev - (data.pendingWithdrawals || 0)); // trừ đi số tiền đang chờ rút
+        setWalletBalance((prev) => prev - (data.pendingWithdrawals || 0)); // subtract pending withdrawals
       } catch (err) {
         console.error("Fetch wallet error:", err);
       } finally {
@@ -140,7 +141,7 @@ const TaskerDashboardContent = () => {
     new Intl.NumberFormat("vi-VN").format(amount) + "đ";
 
   // =========================
-  // 🟡 FETCH JOBS
+  // FETCH JOBS
   // =========================
   useEffect(() => {
     const fetchJobs = async () => {
@@ -157,7 +158,7 @@ const TaskerDashboardContent = () => {
 
         const mapped = merged.map(mapOrderToJob);
 
-        // 🔥 DETECT JOB MỚI
+        // Detect new searching jobs
         const newJobs = mapped.filter(
           (job) => !seenJobIds.has(job.id) && job.status === "SEARCHING",
         );
@@ -168,17 +169,17 @@ const TaskerDashboardContent = () => {
           setIncomingJob(newest);
           setShowNewJobPopup(true);
 
-          console.log("🔥 NEW JOB POPUP:", newest.id);
+          console.log("New job popup:", newest.id);
         }
 
-        // 🔥 UPDATE SEEN IDS
+        // Update seen ids
         setSeenJobIds((prev) => {
           const updated = new Set(prev);
           mapped.forEach((j) => updated.add(j.id));
           return updated;
         });
 
-        // 🔥 INITIALIZE UNREAD MESSAGE COUNTS
+        // Initialize unread message counts
         mapped.forEach((job) => {
           if (job.unreadMessages && job.unreadMessages > 0) {
             useUnreadMessagesStore.getState().setUnread(job.id, job.unreadMessages);
@@ -207,7 +208,7 @@ const TaskerDashboardContent = () => {
   }, [toast]);
 
   // =========================
-  // 📊 FILTER
+  // FILTER
   // =========================
   const assignedJobs = jobs.filter((j) => j.status === "ASSIGNED");
   const inProgressJobs = jobs.filter((j) => j.status === "IN_PROGRESS");
@@ -215,6 +216,8 @@ const TaskerDashboardContent = () => {
     (j) => j.status === "COMPLETED" || j.status === "WAITING_CONFIRMATION",
   );
   const timeoutJobs = jobs.filter((j) => j.status === "TIMEOUT");
+  const mobileTabTriggerClassName =
+    "flex min-h-10 w-full min-w-0 items-center justify-center px-1.5 py-1 text-center text-[11px] leading-4 whitespace-normal sm:w-auto sm:px-3 sm:py-1.5 sm:text-sm sm:whitespace-nowrap";
 
   const dashboardStats = useMemo(() => {
     const toAmount = (value: unknown) => {
@@ -273,7 +276,7 @@ const TaskerDashboardContent = () => {
   console.log("TIMEOUT:", timeoutJobs);
 
   // =========================
-  // 🎯 HANDLERS
+  // HANDLERS
   // =========================
   const openJobDetail = (job: Job) => {
     setSelectedJob(job);
@@ -285,7 +288,7 @@ const TaskerDashboardContent = () => {
       setChatOrderId(job.id);
       setChatPeerName(job.customer || "Khách hàng");
 
-      // 🔥 CLEAR UNREAD MESSAGES WHEN OPENING CHAT
+      // Clear unread messages when opening chat
       useUnreadMessagesStore.getState().clearUnread(job.id);
       setJobs((prev) =>
         prev.map((j) =>
@@ -295,7 +298,7 @@ const TaskerDashboardContent = () => {
         )
       );
 
-      // 🔥 MARK MESSAGES AS READ ON BACKEND
+      // Mark messages as read on backend
         try {
         await fetch(`/api/chat/orders/${job.id}/messages/mark-read`, {
           method: "PATCH",
@@ -411,20 +414,20 @@ const TaskerDashboardContent = () => {
     };
   }, [chatOpen, chatOrderId, userId]);
 
-  // 🔥 SETUP SOCKET LISTENERS - NEVER CLEANUP WHEN INCOMINGOB CHANGES
+  // Setup socket listeners
   useEffect(() => {
     if (!userId) return;
 
     const socket = connectSocket(userId, "TASKER");
     if (!socket) return;
 
-    // 🔥 HANDLE REALTIME CANCEL NOTIFICATION FROM CUSTOMER
+    // Handle realtime cancel notification from customer
     const handleOrderCancelled = (payload: any) => {
       try {
         const orderId = String(payload?.orderId ?? "");
         if (!orderId) return;
 
-        console.log("🔥🔥🔥 Order cancelled realtime:", orderId);
+        console.log("Order cancelled realtime:", orderId);
 
         // Remove job immediately from lists
         setJobs((prev) => prev.filter((j) => j.id !== orderId));
@@ -443,13 +446,13 @@ const TaskerDashboardContent = () => {
       }
     };
 
-    // 🔥 HANDLE REALTIME KEEP NOTIFICATION (timeout order kept by customer)
+    // Handle realtime keep notification
     const handleOrderKept = (payload: any) => {
       try {
         const orderId = String(payload?.orderId ?? "");
         if (!orderId) return;
 
-        console.log("🔥🔥🔥 Order kept realtime:", orderId);
+        console.log("Order kept realtime:", orderId);
 
         // Update job status back to ASSIGNED (from TIMEOUT)
         setJobs((prev) =>
@@ -472,13 +475,13 @@ const TaskerDashboardContent = () => {
     socket.on('order:cancelled', handleOrderCancelled);
     socket.on('order:kept', handleOrderKept);
 
-    console.log("✅ Socket listeners registered for order:cancelled and order:kept");
+    console.log("Socket listeners registered for order:cancelled and order:kept");
 
     // Cleanup only these listeners
     return () => {
       socket.off('order:cancelled', handleOrderCancelled);
       socket.off('order:kept', handleOrderKept);
-      console.log("🧹 Cleaned up order:cancelled and order:kept listeners");
+      console.log("Cleaned up order:cancelled and order:kept listeners");
     };
   }, [userId]);
 
@@ -493,7 +496,7 @@ const TaskerDashboardContent = () => {
       const senderId = String(message?.senderId ?? "");
       const isFromMe = senderId === String(userId);
 
-      // 🔥 If chat is open and it's the right order, add to messages
+      // If chat is open and it's the right order, add to messages
       if (incomingOrderId === chatOrderId && chatOpen) {
         const nextMessage: ChatMessage = {
           id: String(message?._id ?? message?.id ?? `m-${Date.now()}`),
@@ -517,10 +520,10 @@ const TaskerDashboardContent = () => {
           return [...prev, nextMessage];
         });
       } else if (!isFromMe) {
-        // 🔥 If message is from customer and chat is not open, increment unread
+        // If message is from customer and chat is not open, increment unread
         useUnreadMessagesStore.getState().incrementUnread(incomingOrderId, 1);
-        
-        // 🔥 Also update jobs state to trigger re-render
+
+        // Also update jobs state to trigger re-render
         setJobs((prev) =>
           prev.map((job) =>
             job.id === incomingOrderId
@@ -633,7 +636,7 @@ const TaskerDashboardContent = () => {
 
   const handleStart = async (jobId: string) => {
     try {
-      // 🔍 Kiểm tra ràng buộc thời gian
+      // Check time constraints before allowing start
       const job = jobs.find((j) => j.id === jobId);
       if (job && job.scheduleTime) {
         const scheduleTime = new Date(job.scheduleTime).getTime();
@@ -670,7 +673,7 @@ const TaskerDashboardContent = () => {
         throw new Error("Không thể bắt đầu việc");
       }
 
-      // 🔥 update local state ngay lập tức
+      // Update local state immediately
       setJobs((prev) =>
         prev.map((j) => (j.id === jobId ? { ...j, status: "IN_PROGRESS" } : j)),
       );
@@ -723,7 +726,7 @@ const TaskerDashboardContent = () => {
         credentials: "include",
       });
 
-      // 🔥 update state ngay
+      // Update state immediately
       setJobs((prev) =>
         prev.map((j) =>
           j.id === jobId ? { ...j, status: "WAITING_CONFIRMATION" } : j,
@@ -738,7 +741,7 @@ const TaskerDashboardContent = () => {
           status: "WAITING_CONFIRMATION",
         });
 
-        setShowCompletionPopup(true); // 🔥 show popup
+        setShowCompletionPopup(true); // show popup
       }
     } catch (err) {
       console.error(err);
@@ -753,12 +756,12 @@ const TaskerDashboardContent = () => {
         title: "Nhận việc thành công",
       });
 
-      // 🔥 update UI ngay (optimistic)
+      // Update UI immediately
       setJobs((prev) =>
         prev.map((j) => (j.id === jobId ? { ...j, status: "ASSIGNED" } : j)),
       );
 
-      // 🔥 nếu là popup → đóng
+      // Close popup if this job came from the incoming popup
       if (incomingJob?.id === jobId) {
         setShowNewJobPopup(false);
         setIncomingJob(null);
@@ -836,12 +839,12 @@ const TaskerDashboardContent = () => {
       }
     };
 
-    // 🔥 HANDLE REALTIME CANCEL FROM CUSTOMER
+    // Handle realtime cancel from customer
     const handleCancelled = (payload: any) => {
       const payloadOrderId = String(payload?.orderId ?? "");
       if (payloadOrderId !== orderId) return;
 
-      console.log("🔥 Incoming job cancelled:", orderId);
+      console.log("Incoming job cancelled:", orderId);
 
       setShowNewJobPopup(false);
       setIncomingJob(null);
@@ -854,12 +857,12 @@ const TaskerDashboardContent = () => {
       });
     };
 
-    // 🔥 HANDLE REALTIME KEEP (timeout order kept by customer)
+    // Handle realtime keep from customer
     const handleKept = (payload: any) => {
       const payloadOrderId = String(payload?.orderId ?? "");
       if (payloadOrderId !== orderId) return;
 
-      console.log("🔥 Incoming job kept:", orderId);
+      console.log("Incoming job kept:", orderId);
 
       setShowNewJobPopup(false);
       setIncomingJob(null);
@@ -916,33 +919,20 @@ const TaskerDashboardContent = () => {
           >
             <div className="absolute -right-10 -top-10 h-24 w-24 rounded-full bg-emerald-400/10 blur-2xl" />
             <div className="absolute -bottom-8 -left-6 h-20 w-20 rounded-full bg-teal-400/10 blur-2xl" />
-            <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/15 text-[0px] text-emerald-700 after:text-base after:font-bold after:text-emerald-700 after:content-['₫'] dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-200 dark:after:text-emerald-200">
-              <span className="text-emerald-600 font-bold text-sm">₫</span>
+            <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-200">
+              <Wallet size={20} strokeWidth={2.2} />
             </div>
-            <div className="pointer-events-none absolute left-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-200">
-              <span className="text-[11px] font-bold tracking-[0.08em]">VND</span>
-            </div>
-            <div className="relative min-w-0 flex-1 pl-0 text-left">
+            <div className="relative min-w-0 flex-1 text-left">
               <div className="mb-1 flex flex-wrap items-center gap-2">
-                <p className="hidden text-sm font-semibold text-foreground">
-                  
-                Ví của Tasker
-              </p>
-                <span className="hidden rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:border-emerald-400/20 dark:text-emerald-200">
-                  OTP bảo vệ
-                </span>
                 <p className="text-sm font-semibold text-foreground">
-                  Vi Tasker
+                  Ví Tasker
                 </p>
                 <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:border-emerald-400/20 dark:text-emerald-200">
-                  OTP bao ve
+                  OTP bảo vệ
                 </span>
               </div>
-              <p className="hidden text-xs text-muted-foreground">
-                Quản lý thu nhập & rút tiền
-              </p>
               <p className="text-xs text-muted-foreground">
-                Quan ly thu nhap, lich su giao dich va rut tien an toan.
+                Quản lý thu nhập, lịch sử giao dịch và rút tiền an toàn.
               </p>
             </div>
             <div className="relative shrink-0 text-right">
@@ -956,23 +946,50 @@ const TaskerDashboardContent = () => {
           </button>
 
           <Tabs defaultValue="assigned" className="space-y-6">
-            <TabsList className="bg-card p-1 rounded-xl">
-              <TabsTrigger value="assigned">
-                Việc mới ({assignedJobs.length})
+            <TabsList className="grid h-auto w-full grid-cols-5 items-stretch gap-1 rounded-xl bg-card p-1 sm:h-10 sm:w-full sm:grid-cols-none sm:flex sm:justify-center">
+              <TabsTrigger
+                value="assigned"
+                className={mobileTabTriggerClassName}
+              >
+                <span className="sm:hidden">Mới</span>
+                <span className="hidden sm:inline">
+                  Việc mới ({assignedJobs.length})
+                </span>
               </TabsTrigger>
-              <TabsTrigger value="in_progress">
-                Đang làm ({inProgressJobs.length})
+              <TabsTrigger
+                value="in_progress"
+                className={mobileTabTriggerClassName}
+              >
+                <span className="sm:hidden">Đang làm</span>
+                <span className="hidden sm:inline">
+                  Đang làm ({inProgressJobs.length})
+                </span>
               </TabsTrigger>
-
-              <TabsTrigger value="completed">Đã hoàn thành</TabsTrigger>
+              <TabsTrigger
+                value="completed"
+                className={mobileTabTriggerClassName}
+              >
+                <span className="sm:hidden">Hoàn thành</span>
+                <span className="hidden sm:inline">Đã hoàn thành</span>
+              </TabsTrigger>
               {timeoutJobs.length > 0 && (
-                <TabsTrigger value="timeout" className="text-red-600">
-                  Quá hạn ({timeoutJobs.length})
+                <TabsTrigger
+                  value="timeout"
+                  className={`${mobileTabTriggerClassName} text-red-600`}
+                >
+                  <span className="sm:hidden">Quá hạn</span>
+                  <span className="hidden sm:inline">
+                    Quá hạn ({timeoutJobs.length})
+                  </span>
                 </TabsTrigger>
               )}
-              <TabsTrigger value="profile">Hồ sơ</TabsTrigger>
+              <TabsTrigger
+                value="profile"
+                className={mobileTabTriggerClassName}
+              >
+                Hồ sơ
+              </TabsTrigger>
             </TabsList>
-
             <TabsContent value="assigned">
               <div className="space-y-4">
                 {assignedJobs.map((job) => (
