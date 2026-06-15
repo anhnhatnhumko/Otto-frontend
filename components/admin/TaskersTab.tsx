@@ -50,7 +50,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { TaskerStatusBadge } from "../shared/StatusBadges";
-import { AddTaskerFormDialog } from "../dialogs/AddTaskerFormDialog";
+import {
+  AddTaskerFormDialog,
+  type AddTaskerPrefillData,
+} from "../dialogs/AddTaskerFormDialog";
 
 import type { Tasker, Service } from "@/app/admin/dashboard/types";
 import { DataPagination } from "../ui/data-pagination";
@@ -58,6 +61,7 @@ import { API_URL } from "@/app/admin/dashboard/constants";
 import { connectSocket } from "@/lib/socket";
 import { toast } from "@/hooks/use-toast";
 import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
+import { useUserStore } from "@/app/store/useUserStore";
 
 interface TaskersTabProps {
   taskers: Tasker[];
@@ -99,7 +103,14 @@ export function TaskersTab({
   const [requests, setRequests] = useState<any[]>([]);
   const { unreadIds: unreadRequestIds, setUnreadRequestIds, addUnread, removeUnread } = useUnreadNotifications('tasker_requests');
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
+  const authUser = useUserStore((state) => state.user) as
+    | { _id?: string; id?: string; role?: string }
+    | null;
+  const [prefillTaskerData, setPrefillTaskerData] =
+    useState<AddTaskerPrefillData | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const socketUserId = String(authUser?._id ?? authUser?.id ?? "").trim();
+  const socketRole = String(authUser?.role ?? "ADMIN").trim().toUpperCase();
 
   // 🔥 PAGINATION STATE
   const [page, setPage] = useState(1);
@@ -261,8 +272,12 @@ export function TaskersTab({
   // REALTIME: listen for new tasker requests
   // ============================
   useEffect(() => {
+    if (!socketUserId) {
+      return;
+    }
+
     try {
-      const socket = connectSocket('admin', 'ADMIN');
+      const socket = connectSocket(socketUserId, socketRole);
       if (!socket) return;
 
       const handleCreated = (payload: any) => {
@@ -368,7 +383,7 @@ export function TaskersTab({
     } catch (err) {
       console.warn('Socket setup failed', err);
     }
-  }, []);
+  }, [socketRole, socketUserId]);
 
   // ============================
   // LOAD WARDS BY PROVINCE
@@ -407,6 +422,127 @@ export function TaskersTab({
       localStorage.setItem(seenStorageKey, JSON.stringify(Array.from(seenIdsRef.current)));
     } catch (err) {
       // ignore
+    }
+  };
+
+  const normalizeLookupValue = (value?: string | null) =>
+    String(value ?? "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/đ/g, "d")
+      .replace(/Đ/g, "D")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const matchesLookupValue = (left?: string | null, right?: string | null) => {
+    const normalizedLeft = normalizeLookupValue(left);
+    const normalizedRight = normalizeLookupValue(right);
+
+    if (!normalizedLeft || !normalizedRight) {
+      return false;
+    }
+
+    return (
+      normalizedLeft === normalizedRight ||
+      normalizedLeft.includes(normalizedRight) ||
+      normalizedRight.includes(normalizedLeft)
+    );
+  };
+
+  const buildTaskerPrefillData = async (
+    request: any,
+  ): Promise<{
+    prefillData: AddTaskerPrefillData;
+    unresolvedFields: string[];
+  }> => {
+    const provinceName = request?.formData?.city;
+    const wardName = request?.formData?.district;
+    const rawServices = Array.isArray(request?.services) ? request.services : [];
+
+    const matchedProvince = provinces.find((province) =>
+      matchesLookupValue(province.name, provinceName),
+    );
+
+    const matchedServiceIds = rawServices
+      .map((serviceValue: unknown) => {
+        const rawValue = String(serviceValue ?? "").trim();
+        if (!rawValue) {
+          return "";
+        }
+
+        const matchedService = services.find(
+          (service) =>
+            service.id === rawValue || matchesLookupValue(service.name, rawValue),
+        );
+
+        return matchedService?.id ?? "";
+      })
+      .filter(Boolean);
+
+    let matchedWardId = "";
+
+    if (matchedProvince?._id && wardName) {
+      try {
+        const response = await fetch(
+          `/api/locations?provinceId=${matchedProvince._id}`,
+        );
+
+        if (response.ok) {
+          const wardOptions = (await response.json()) as Ward[];
+          matchedWardId =
+            wardOptions.find((ward) => matchesLookupValue(ward.name, wardName))
+              ?._id ?? "";
+        }
+      } catch (error) {
+        console.error("Load wards for tasker prefill failed", error);
+      }
+    }
+
+    const unresolvedFields: string[] = [];
+
+    if (provinceName && !matchedProvince?._id) {
+      unresolvedFields.push("tỉnh/thành");
+    }
+
+    if (wardName && matchedProvince?._id && !matchedWardId) {
+      unresolvedFields.push("quận/huyện");
+    }
+
+    if (rawServices.length > 0 && matchedServiceIds.length !== rawServices.length) {
+      unresolvedFields.push("dịch vụ");
+    }
+
+    return {
+      prefillData: {
+        name: request?.formData?.fullName ?? "",
+        email: request?.formData?.email ?? "",
+        phone: request?.formData?.phone ?? "",
+        provinceId: matchedProvince?._id ?? "",
+        wardId: matchedWardId,
+        services: Array.from(new Set(matchedServiceIds)),
+      },
+      unresolvedFields,
+    };
+  };
+
+  const handleOpenAddTaskerFromRequest = async () => {
+    if (!selectedRequest) {
+      return;
+    }
+
+    const { prefillData, unresolvedFields } =
+      await buildTaskerPrefillData(selectedRequest);
+
+    setPrefillTaskerData(prefillData);
+    setIsDetailOpen(false);
+    setIsAddTaskerOpen(true);
+
+    if (unresolvedFields.length > 0) {
+      toast({
+        title: "Đã điền sẵn một phần thông tin",
+        description: `Vui lòng kiểm tra lại ${unresolvedFields.join(", ")} trước khi tạo tasker.`,
+      });
     }
   };
 
@@ -457,7 +593,13 @@ export function TaskersTab({
             )}
           </div>
 
-          <Button onClick={() => setIsAddTaskerOpen(true)} className="gap-2">
+          <Button
+            onClick={() => {
+              setPrefillTaskerData(null);
+              setIsAddTaskerOpen(true);
+            }}
+            className="gap-2"
+          >
             <Plus className="h-4 w-4" />
             Thêm Tasker
           </Button>
@@ -699,6 +841,7 @@ export function TaskersTab({
         open={isAddTaskerOpen}
         onOpenChange={setIsAddTaskerOpen}
         services={services}
+        prefillData={prefillTaskerData}
         onTaskerAdded={onRefresh}
       />
 
@@ -774,6 +917,9 @@ export function TaskersTab({
               </div>
 
               <div className="flex justify-end gap-2 pt-3">
+                <Button onClick={() => void handleOpenAddTaskerFromRequest()}>
+                  Đưa vào form thêm Tasker
+                </Button>
                 <Button
                   variant="outline"
                   onClick={() => setIsDetailOpen(false)}

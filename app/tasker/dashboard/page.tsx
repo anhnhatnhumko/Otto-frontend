@@ -1,5 +1,5 @@
 ﻿"use client";
-import { Suspense, useState, useEffect, useMemo } from "react";
+import { Suspense, useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -72,6 +72,8 @@ const TaskerDashboardContent = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatOrderId, setChatOrderId] = useState<string | null>(null);
   const [pendingChatOrderId, setPendingChatOrderId] = useState<string | null>(null);
+  const walletRefreshTimeoutRef = useRef<number | null>(null);
+  const walletRefreshLongTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -114,27 +116,85 @@ const TaskerDashboardContent = () => {
     setJobs((prev) => prev.filter((j) => j.id !== jobId));
   };
 
+  const fetchWallet = useCallback(async () => {
+    if (!userId) return;
+
+    try {
+      const res = await fetch(`/api/wallet`, {
+        credentials: "include",
+        cache: "no-store",
+      });
+
+      const data = await res.json();
+      const balance = Number(data?.balance ?? 0);
+      const pendingWithdrawals = Number(data?.pendingWithdrawals ?? 0);
+
+      setWalletBalance(balance - pendingWithdrawals);
+    } catch (err) {
+      console.error("Fetch wallet error:", err);
+    } finally {
+      setWalletLoading(false);
+    }
+  }, [userId]);
+
+  const scheduleWalletRefresh = useCallback(() => {
+    void fetchWallet();
+
+    if (typeof window === "undefined") return;
+
+    if (walletRefreshTimeoutRef.current) {
+      window.clearTimeout(walletRefreshTimeoutRef.current);
+    }
+    if (walletRefreshLongTimeoutRef.current) {
+      window.clearTimeout(walletRefreshLongTimeoutRef.current);
+    }
+
+    walletRefreshTimeoutRef.current = window.setTimeout(() => {
+      void fetchWallet();
+    }, 1200);
+
+    walletRefreshLongTimeoutRef.current = window.setTimeout(() => {
+      void fetchWallet();
+    }, 2600);
+  }, [fetchWallet]);
+
   useEffect(() => {
-    const fetchWallet = async () => {
-      try {
-        const res = await fetch(`/api/wallet`, {
-          credentials: "include",
-        });
+    if (!userId) return;
+    void fetchWallet();
+  }, [fetchWallet, userId]);
 
-        const data = await res.json();
+  useEffect(() => {
+    if (typeof window === "undefined" || !userId) return;
 
-        console.log("Wallet data:", data);
+    const handleWindowFocus = () => {
+      void fetchWallet();
+    };
 
-        setWalletBalance(data.balance || 0);
-        setWalletBalance((prev) => prev - (data.pendingWithdrawals || 0)); // subtract pending withdrawals
-      } catch (err) {
-        console.error("Fetch wallet error:", err);
-      } finally {
-        setWalletLoading(false);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void fetchWallet();
       }
     };
 
-    fetchWallet();
+    window.addEventListener("focus", handleWindowFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", handleWindowFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [fetchWallet, userId]);
+
+  useEffect(() => {
+    return () => {
+      if (typeof window === "undefined") return;
+      if (walletRefreshTimeoutRef.current) {
+        window.clearTimeout(walletRefreshTimeoutRef.current);
+      }
+      if (walletRefreshLongTimeoutRef.current) {
+        window.clearTimeout(walletRefreshLongTimeoutRef.current);
+      }
+    };
   }, []);
 
   const formatCurrency = (amount: number) =>
@@ -491,6 +551,10 @@ const TaskerDashboardContent = () => {
     const socket = connectSocket(userId, "TASKER");
     if (!socket) return;
 
+    const handleWalletRealtime = () => {
+      scheduleWalletRefresh();
+    };
+
     const handleIncomingChatMessage = (message: any) => {
       const incomingOrderId = String(message?.orderId ?? "");
       const senderId = String(message?.senderId ?? "");
@@ -541,6 +605,7 @@ const TaskerDashboardContent = () => {
       try {
         const id = String(payload?.orderId ?? payload?.id ?? payload?._id ?? "");
         if (!id) return;
+        scheduleWalletRefresh();
 
         const status = String(payload?.status ?? payload?.data?.status ?? payload?.order?.status ?? "").toUpperCase();
 
@@ -575,6 +640,7 @@ const TaskerDashboardContent = () => {
       try {
         const id = String(order?._id ?? order?.id ?? "");
         if (!id) return;
+        scheduleWalletRefresh();
         const status = String(order?.status ?? "").toUpperCase();
         if (status === "CANCELLED" || status === "AUTO_CANCELLED") {
           setJobs((prev) => prev.filter((j) => j.id !== id));
@@ -602,13 +668,17 @@ const TaskerDashboardContent = () => {
 
     socket.on('order:status-updated', handleOrderStatus);
     socket.on('order:updated', handleOrderFull);
+    socket.on("notification:new", handleWalletRealtime);
+    socket.on("connect", handleWalletRealtime);
 
     return () => {
       socket.off("chat:message", handleIncomingChatMessage);
       socket.off('order:status-updated', handleOrderStatus);
       socket.off('order:updated', handleOrderFull);
+      socket.off("notification:new", handleWalletRealtime);
+      socket.off("connect", handleWalletRealtime);
     };
-  }, [userId, chatOrderId, chatOpen, incomingJob]);
+  }, [userId, chatOrderId, chatOpen, incomingJob, scheduleWalletRefresh]);
 
   useEffect(() => {
     const shouldOpenChat = searchParams.get("chat") === "true";

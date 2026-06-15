@@ -3,6 +3,10 @@
 import OverdueOrderPopup from "@/components/OverdueOrderPopup";
 import { useToast } from "@/hooks/use-toast";
 import { useOverdueOrder } from "@/hooks/useOverdueOrder";
+import {
+  buildOptimisticOrderAcceptedNotification,
+  getRealtimeNotificationIdentity,
+} from "@/lib/realtime-notification";
 import { connectSocket } from "@/lib/socket";
 import { Bell, MessageCircle, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
@@ -95,10 +99,10 @@ export default function GlobalNotificationPopup({ userId, role }: Props) {
     if (!socket) return;
 
     const handleNewNotification = (notification: RealtimeNotification) => {
-      const id = String(notification?._id ?? "");
-      if (id && shownIds.current.has(id)) return;
-      if (id) {
-        shownIds.current.add(id);
+      const identity = getRealtimeNotificationIdentity(notification);
+      if (identity && shownIds.current.has(identity)) return;
+      if (identity) {
+        shownIds.current.add(identity);
       }
 
       const notificationType = String(notification?.type ?? "").toLowerCase();
@@ -116,10 +120,29 @@ export default function GlobalNotificationPopup({ userId, role }: Props) {
       setQueue((prev) => [...prev, notification]);
     };
 
+    const handleOrderRealtime = (payload: unknown) => {
+      if (role !== "CUSTOMER") return;
+
+      const optimistic = buildOptimisticOrderAcceptedNotification(payload);
+      if (!optimistic) return;
+
+      const identity = getRealtimeNotificationIdentity(optimistic);
+      if (identity && shownIds.current.has(identity)) return;
+      if (identity) {
+        shownIds.current.add(identity);
+      }
+
+      setQueue((prev) => [...prev, optimistic]);
+    };
+
     socket.on("notification:new", handleNewNotification);
+    socket.on("order:updated", handleOrderRealtime);
+    socket.on("order:status-updated", handleOrderRealtime);
 
     return () => {
       socket.off("notification:new", handleNewNotification);
+      socket.off("order:updated", handleOrderRealtime);
+      socket.off("order:status-updated", handleOrderRealtime);
     };
   }, [handleCompletionNotification, handleOverdueNotification, role, userId]);
 

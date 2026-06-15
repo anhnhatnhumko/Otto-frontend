@@ -5,8 +5,10 @@ import { Label } from "@radix-ui/react-label";
 import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { login } from "@/lib/auth";
+import { extractUserFacingErrorFromUnknown } from "@/lib/user-facing-error";
+import { FORCED_LOGOUT_MESSAGE_STORAGE_KEY } from "@/components/providers/ForcedLogoutProvider";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -16,6 +18,21 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
 
   const router = useRouter();
+
+  useEffect(() => {
+    try {
+      const forcedLogoutMessage = window.sessionStorage.getItem(
+        FORCED_LOGOUT_MESSAGE_STORAGE_KEY,
+      );
+
+      if (forcedLogoutMessage) {
+        setError(forcedLogoutMessage);
+        window.sessionStorage.removeItem(FORCED_LOGOUT_MESSAGE_STORAGE_KEY);
+      }
+    } catch {
+      // ignore session storage errors
+    }
+  }, []);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -41,8 +58,13 @@ export default function LoginPage() {
           router.push("/tasker/dashboard");
         }
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(
+        extractUserFacingErrorFromUnknown(
+          err,
+          "Đăng nhập không thành công. Vui lòng thử lại.",
+        ),
+      );
     } finally {
       setLoading(false);
     }

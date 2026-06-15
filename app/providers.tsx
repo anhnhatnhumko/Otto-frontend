@@ -2,6 +2,7 @@
 
 import { ThemeProvider } from "next-themes";
 import { ReactNode } from "react";
+import ForcedLogoutProvider from "@/components/providers/ForcedLogoutProvider";
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
@@ -12,7 +13,7 @@ export function Providers({ children }: { children: ReactNode }) {
       storageKey="otto-theme"
       disableTransitionOnChange
     >
-      {children}
+      <ForcedLogoutProvider>{children}</ForcedLogoutProvider>
     </ThemeProvider>
   );
 }

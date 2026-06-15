@@ -40,6 +40,7 @@ interface AddTaskerFormDialogProps {
   onOpenChange: (open: boolean) => void;
   services: Service[];
   onTaskerAdded?: () => void | Promise<void>;
+  prefillData?: AddTaskerPrefillData | null;
 }
 
 type CreatedTaskerCredentials = {
@@ -56,6 +57,15 @@ interface TaskerFormData {
   provinceId: string;
   wardId: string;
   services: string[];
+}
+
+export interface AddTaskerPrefillData {
+  name?: string;
+  email?: string;
+  phone?: string;
+  provinceId?: string;
+  wardId?: string;
+  services?: string[];
 }
 
 type TaskerFormErrors = Partial<Record<keyof TaskerFormData, string>>;
@@ -136,6 +146,7 @@ export function AddTaskerFormDialog({
   onOpenChange,
   services,
   onTaskerAdded,
+  prefillData,
 }: AddTaskerFormDialogProps) {
   const [form, setForm] = useState<TaskerFormData>(INITIAL_FORM_STATE);
   const [loading, setLoading] = useState(false);
@@ -183,7 +194,10 @@ export function AddTaskerFormDialog({
         const res = await fetch(`/api/locations?provinceId=${form.provinceId}`);
         const data = await res.json();
         setWards(data);
-        setForm((prev) => ({ ...prev, wardId: "" }));
+        setForm((prev) => {
+          const hasSelectedWard = data.some((ward: Ward) => ward._id === prev.wardId);
+          return hasSelectedWard ? prev : { ...prev, wardId: "" };
+        });
       } catch (err) {
         console.error("Load wards failed", err);
       } finally {
@@ -193,6 +207,29 @@ export function AddTaskerFormDialog({
 
     fetchWards();
   }, [form.provinceId]);
+
+  useEffect(() => {
+    if (!open || !prefillData || createdCredentials) {
+      return;
+    }
+
+    setForm({
+      name: prefillData.name?.trim() ?? "",
+      email: prefillData.email?.trim() ?? "",
+      phone: prefillData.phone?.trim() ?? "",
+      provinceId: prefillData.provinceId ?? "",
+      wardId: prefillData.wardId ?? "",
+      services: prefillData.services ?? [],
+    });
+    setErrors({});
+    setAvatarFile(null);
+    setAvatarPreview((prev) => {
+      if (prev) {
+        URL.revokeObjectURL(prev);
+      }
+      return null;
+    });
+  }, [createdCredentials, open, prefillData]);
 
   const validateForm = (): boolean => {
     const nextErrors: TaskerFormErrors = {};

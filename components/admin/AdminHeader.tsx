@@ -32,6 +32,7 @@ import { useLogout } from "@/hooks/useLogout";
 import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
 import { connectSocket } from "@/lib/socket";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useUserStore } from "@/app/store/useUserStore";
 
 
 
@@ -49,9 +50,18 @@ const AdminHeader = () => {
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
     const router = useRouter();
     const logout = useLogout();
+  const authUser = useUserStore((state) => state.user) as
+    | { _id?: string; id?: string; role?: string }
+    | null;
   const API_URL = "/api";
+  const socketUserId = String(authUser?._id ?? authUser?.id ?? "").trim();
+  const socketRole = String(authUser?.role ?? "ADMIN").trim().toUpperCase();
 
   useEffect(() => {
+    if (!socketUserId) {
+      return;
+    }
+
     // Load persisted seen IDs so we don't treat already-seen items as new on reload
     try {
       const raw = localStorage.getItem(seenStorageKey);
@@ -66,7 +76,7 @@ const AdminHeader = () => {
     }
     // connect as ADMIN to receive admin events
     try {
-      const socket = connectSocket("admin", "ADMIN");
+      const socket = connectSocket(socketUserId, socketRole);
       if (!socket) return;
 
       const handleNew = (payload: any) => {
@@ -132,7 +142,7 @@ const AdminHeader = () => {
     } catch (err) {
       console.error("Admin socket init failed", err);
     }
-  }, []);
+  }, [socketRole, socketUserId]);
 
   const fetchList = async () => {
     if (!API_URL) return;

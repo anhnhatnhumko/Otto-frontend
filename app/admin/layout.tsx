@@ -1,11 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [checking, setChecking] = useState(true);
+
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const previousClassName = root.className;
+    const previousColorScheme = root.style.colorScheme;
+
+    root.classList.remove("dark");
+    root.classList.add("light");
+    root.style.colorScheme = "light";
+
+    return () => {
+      root.className = previousClassName;
+      root.style.colorScheme = previousColorScheme;
+    };
+  }, []);
 
   useEffect(() => {
     const guardAdminAccess = async () => {
@@ -34,13 +49,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
     };
 
-    guardAdminAccess();
+    void guardAdminAccess();
   }, [router]);
 
   if (checking) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center text-sm text-muted-foreground">
-        Đang kiểm tra quyền truy cập quản trị viên...
+        {"\u0110ang ki\u1ec3m tra quy\u1ec1n truy c\u1eadp qu\u1ea3n tr\u1ecb vi\u00ean..."}
       </div>
     );
   }

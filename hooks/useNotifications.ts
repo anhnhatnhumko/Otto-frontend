@@ -2,6 +2,10 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { connectSocket } from '@/lib/socket';
 import { useAuth } from './useAuth';
 import { useUserStore } from '@/app/store/useUserStore';
+import {
+  buildOptimisticOrderAcceptedNotification,
+  upsertRealtimeNotification,
+} from '@/lib/realtime-notification';
 
 const fetchAPI = async (path: string, options: RequestInit = {}) => {
   const response = await fetch(`/api${path}`, {
@@ -134,7 +138,18 @@ export const useNotifications = () => {
 
       // Lắng nghe notification mới
       const handleNewNotification = (notification: Notification) => {
-        setNotifications((prev) => [notification, ...prev]);
+        setNotifications((prev) => upsertRealtimeNotification(prev, notification));
+      };
+
+      const handleOrderRealtime = (payload: unknown) => {
+        if (userRole !== 'CUSTOMER') return;
+
+        const optimistic = buildOptimisticOrderAcceptedNotification(payload);
+        if (!optimistic) return;
+
+        setNotifications((prev) =>
+          upsertRealtimeNotification(prev, optimistic as Notification)
+        );
       };
 
       const handleConnect = () => {
@@ -142,11 +157,15 @@ export const useNotifications = () => {
       };
 
       socket.on('notification:new', handleNewNotification);
+      socket.on('order:updated', handleOrderRealtime);
+      socket.on('order:status-updated', handleOrderRealtime);
       socket.on('connect', handleConnect);
       loadNotifications();
 
       return () => {
         socket.off('notification:new', handleNewNotification);
+        socket.off('order:updated', handleOrderRealtime);
+        socket.off('order:status-updated', handleOrderRealtime);
         socket.off('connect', handleConnect);
       };
     } catch (error) {

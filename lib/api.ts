@@ -1,3 +1,5 @@
+import { extractUserFacingErrorMessage } from "./user-facing-error";
+
 export async function apiPost<T>(
   path: string,
   body: unknown
@@ -12,8 +14,17 @@ export async function apiPost<T>(
   });
 
   if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.message || "API error");
+    let error: unknown = null;
+
+    try {
+      error = await res.json();
+    } catch {
+      error = await res.text().catch(() => "");
+    }
+
+    throw new Error(
+      extractUserFacingErrorMessage(error, "Có lỗi xảy ra. Vui lòng thử lại."),
+    );
   }
 
   return res.json();
