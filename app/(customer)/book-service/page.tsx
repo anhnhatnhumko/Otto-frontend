@@ -196,6 +196,7 @@ const BookService = () => {
 
     try {
       const scheduleTime = new Date(`${selectedDate}T${startTime}:00`);
+      const requestEndTime = endTime === "00:00" ? "24:00" : endTime;
 
       const res = await fetch(`/api/orders`, {
         method: "POST",
@@ -210,7 +211,7 @@ const BookService = () => {
           address: address.address,
           scheduleTime: scheduleTime.toISOString(),
           startTime,
-          endTime,
+          endTime: requestEndTime,
           note,
           paymentMethod: selectedMethod,
           serviceSnapshot: {
