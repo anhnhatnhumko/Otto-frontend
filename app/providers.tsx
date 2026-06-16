@@ -3,6 +3,7 @@
 import { ThemeProvider } from "next-themes";
 import { ReactNode } from "react";
 import ForcedLogoutProvider from "@/components/providers/ForcedLogoutProvider";
+import GlobalNotificationHost from "@/components/providers/GlobalNotificationHost";
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
@@ -13,7 +14,10 @@ export function Providers({ children }: { children: ReactNode }) {
       storageKey="otto-theme"
       disableTransitionOnChange
     >
-      <ForcedLogoutProvider>{children}</ForcedLogoutProvider>
+      <ForcedLogoutProvider>
+        {children}
+        <GlobalNotificationHost />
+      </ForcedLogoutProvider>
     </ThemeProvider>
   );
 }

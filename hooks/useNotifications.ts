@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { connectSocket } from '@/lib/socket';
-import { useAuth } from './useAuth';
 import { useUserStore } from '@/app/store/useUserStore';
 import {
   buildOptimisticOrderAcceptedNotification,
@@ -42,17 +41,15 @@ export const useNotifications = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-  const { user: authUser } = useAuth();
   const storeUser = useUserStore((state) => state.user);
 
-  const activeUser = useMemo(() => storeUser ?? authUser, [storeUser, authUser]);
   const userId = useMemo(
-    () => String(activeUser?._id ?? activeUser?.id ?? ''),
-    [activeUser],
+    () => String(storeUser?._id ?? ''),
+    [storeUser],
   );
   const userRole = useMemo(
-    () => String(activeUser?.role ?? 'CUSTOMER'),
-    [activeUser],
+    () => String(storeUser?.role ?? 'CUSTOMER'),
+    [storeUser],
   );
 
   // Tính toán unread count từ notifications

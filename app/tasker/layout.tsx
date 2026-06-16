@@ -1,6 +1,5 @@
 "use client";
 
-import GlobalNotificationPopup from "@/components/customer/GlobalNotificationPopup";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -64,14 +63,9 @@ export default function TaskerLayout({ children }: { children: React.ReactNode }
   if (!user || user.role !== "TASKER") {
     return null;
   }
-
-  const userId = String(user._id ?? user.id ?? "");
-  const userRole = String(user.role ?? "TASKER");
-
   return (
     <>
       {children}
-      <GlobalNotificationPopup userId={userId} role={userRole} />
     </>
   );
 }
