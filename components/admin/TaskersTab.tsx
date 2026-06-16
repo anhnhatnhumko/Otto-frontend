@@ -311,7 +311,7 @@ export function TaskersTab({
 
     const timer = window.setInterval(() => {
       void fetchRequests();
-    }, 5000);
+    }, 30000);
 
     return () => {
       window.clearInterval(timer);

@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { connectSocket } from '@/lib/socket';
 import { useUserStore } from '@/app/store/useUserStore';
 import {
-  buildOptimisticOrderAcceptedNotification,
+  buildOptimisticChatNotification,
+  buildOptimisticCustomerOrderNotification,
   upsertRealtimeNotification,
 } from '@/lib/realtime-notification';
 
@@ -141,7 +142,16 @@ export const useNotifications = () => {
       const handleOrderRealtime = (payload: unknown) => {
         if (userRole !== 'CUSTOMER') return;
 
-        const optimistic = buildOptimisticOrderAcceptedNotification(payload);
+        const optimistic = buildOptimisticCustomerOrderNotification(payload);
+        if (!optimistic) return;
+
+        setNotifications((prev) =>
+          upsertRealtimeNotification(prev, optimistic as Notification)
+        );
+      };
+
+      const handleChatRealtime = (payload: unknown) => {
+        const optimistic = buildOptimisticChatNotification(payload, userId, userRole);
         if (!optimistic) return;
 
         setNotifications((prev) =>
@@ -154,6 +164,7 @@ export const useNotifications = () => {
       };
 
       socket.on('notification:new', handleNewNotification);
+      socket.on('chat:message', handleChatRealtime);
       socket.on('order:updated', handleOrderRealtime);
       socket.on('order:status-updated', handleOrderRealtime);
       socket.on('connect', handleConnect);
@@ -161,6 +172,7 @@ export const useNotifications = () => {
 
       return () => {
         socket.off('notification:new', handleNewNotification);
+        socket.off('chat:message', handleChatRealtime);
         socket.off('order:updated', handleOrderRealtime);
         socket.off('order:status-updated', handleOrderRealtime);
         socket.off('connect', handleConnect);

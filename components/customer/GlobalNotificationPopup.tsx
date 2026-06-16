@@ -4,7 +4,8 @@ import OverdueOrderPopup from "@/components/OverdueOrderPopup";
 import { useToast } from "@/hooks/use-toast";
 import { useOverdueOrder } from "@/hooks/useOverdueOrder";
 import {
-  buildOptimisticOrderAcceptedNotification,
+  buildOptimisticChatNotification,
+  buildOptimisticCustomerOrderNotification,
   getRealtimeNotificationIdentity,
 } from "@/lib/realtime-notification";
 import { connectSocket } from "@/lib/socket";
@@ -123,7 +124,20 @@ export default function GlobalNotificationPopup({ userId, role }: Props) {
     const handleOrderRealtime = (payload: unknown) => {
       if (role !== "CUSTOMER") return;
 
-      const optimistic = buildOptimisticOrderAcceptedNotification(payload);
+      const optimistic = buildOptimisticCustomerOrderNotification(payload);
+      if (!optimistic) return;
+
+      const identity = getRealtimeNotificationIdentity(optimistic);
+      if (identity && shownIds.current.has(identity)) return;
+      if (identity) {
+        shownIds.current.add(identity);
+      }
+
+      setQueue((prev) => [...prev, optimistic]);
+    };
+
+    const handleChatRealtime = (payload: unknown) => {
+      const optimistic = buildOptimisticChatNotification(payload, userId, role);
       if (!optimistic) return;
 
       const identity = getRealtimeNotificationIdentity(optimistic);
@@ -136,11 +150,13 @@ export default function GlobalNotificationPopup({ userId, role }: Props) {
     };
 
     socket.on("notification:new", handleNewNotification);
+    socket.on("chat:message", handleChatRealtime);
     socket.on("order:updated", handleOrderRealtime);
     socket.on("order:status-updated", handleOrderRealtime);
 
     return () => {
       socket.off("notification:new", handleNewNotification);
+      socket.off("chat:message", handleChatRealtime);
       socket.off("order:updated", handleOrderRealtime);
       socket.off("order:status-updated", handleOrderRealtime);
     };

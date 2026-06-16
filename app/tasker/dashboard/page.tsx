@@ -46,6 +46,126 @@ type User = {
   avatar?: string;
 };
 
+type RealtimeJobPayload = {
+  [key: string]: unknown;
+  _id?: string;
+  id?: string;
+  orderId?: string;
+  status?: string;
+  data?: Record<string, unknown>;
+  order?: Record<string, unknown>;
+  payload?: Record<string, unknown>;
+};
+
+const asRecord = (value: unknown) =>
+  value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+
+const pickRealtimeJobSource = (payload: RealtimeJobPayload) =>
+  asRecord(payload.data) ??
+  asRecord(payload.order) ??
+  asRecord(payload.payload) ??
+  asRecord(payload) ??
+  {};
+
+const getRealtimeJobId = (payload: RealtimeJobPayload) => {
+  const source = pickRealtimeJobSource(payload);
+
+  return String(
+    payload.orderId ??
+      payload._id ??
+      payload.id ??
+      source.orderId ??
+      source._id ??
+      source.id ??
+      "",
+  ).trim();
+};
+
+const getRealtimeJobStatus = (payload: RealtimeJobPayload) => {
+  const source = pickRealtimeJobSource(payload);
+  return String(source.status ?? payload.status ?? "").trim().toUpperCase();
+};
+
+const hasRealtimeJobDetails = (payload: RealtimeJobPayload) => {
+  const source = pickRealtimeJobSource(payload);
+
+  return Boolean(
+    source.serviceSnapshot ||
+      source.customerId ||
+      source.startTime ||
+      source.endTime ||
+      source.scheduleTime ||
+      source.totalPrice ||
+      source.address ||
+      source.addressDetail,
+  );
+};
+
+const buildRealtimeJob = (payload: RealtimeJobPayload): Job | null => {
+  const source = pickRealtimeJobSource(payload);
+  const id = getRealtimeJobId(payload);
+
+  if (!id || !hasRealtimeJobDetails(payload)) {
+    return null;
+  }
+
+  const startTime =
+    typeof source.startTime === "string" && source.startTime
+      ? source.startTime
+      : typeof source.scheduleTime === "string" && source.scheduleTime
+        ? source.scheduleTime
+        : "";
+  const endTime =
+    typeof source.endTime === "string" && source.endTime
+      ? source.endTime
+      : startTime;
+
+  if (!startTime || !endTime) {
+    return null;
+  }
+
+  const normalizedOrder = {
+    ...source,
+    _id: id,
+    status: getRealtimeJobStatus(payload) || String(source.status ?? ""),
+    serviceSnapshot:
+      source.serviceSnapshot ??
+      (typeof source.service === "string" && source.service
+        ? { name: source.service }
+        : undefined),
+    customerId:
+      source.customerId ??
+      (typeof source.customer === "string" || typeof source.phone === "string"
+        ? {
+            fullName: source.customer,
+            phone: source.phone,
+          }
+        : undefined),
+    startTime,
+    endTime,
+    scheduleTime:
+      typeof source.scheduleTime === "string" && source.scheduleTime
+        ? source.scheduleTime
+        : startTime,
+    totalPrice:
+      typeof source.totalPrice === "number"
+        ? source.totalPrice
+        : typeof source.amount === "number"
+          ? source.amount
+          : 0,
+    address:
+      typeof source.address === "string" && source.address
+        ? source.address
+        : typeof source.addressDetail === "string"
+          ? source.addressDetail
+          : "",
+    unreadMessages:
+      typeof source.unreadMessages === "number" ? source.unreadMessages : 0,
+  };
+
+  return mapOrderToJob(normalizedOrder);
+};
+
 const TaskerDashboardContent = () => {
   const { toast } = useToast();
   const router = useRouter();
@@ -73,6 +193,7 @@ const TaskerDashboardContent = () => {
   const [pendingChatOrderId, setPendingChatOrderId] = useState<string | null>(null);
   const walletRefreshTimeoutRef = useRef<number | null>(null);
   const walletRefreshLongTimeoutRef = useRef<number | null>(null);
+  const jobsRefreshTimeoutRef = useRef<number | null>(null);
   const seenJobIdsRef = useRef<Set<string>>(new Set());
   const incomingJobRef = useRef<Job | null>(null);
 
@@ -130,6 +251,49 @@ const TaskerDashboardContent = () => {
   const removeJob = (jobId: string) => {
     setJobs((prev) => prev.filter((j) => j.id !== jobId));
   };
+
+  const syncIncomingJobState = useCallback(
+    (mapped: Job[]) => {
+      const activeIncomingJob = incomingJobRef.current;
+
+      if (activeIncomingJob) {
+        const refreshedIncomingJob = mapped.find(
+          (job) => job.id === activeIncomingJob.id,
+        );
+
+        if (
+          !refreshedIncomingJob ||
+          refreshedIncomingJob.status !== "SEARCHING"
+        ) {
+          closeIncomingJobPopup(activeIncomingJob.id);
+        } else {
+          incomingJobRef.current = refreshedIncomingJob;
+          setIncomingJob(refreshedIncomingJob);
+        }
+      }
+
+      const newJobs = mapped.filter(
+        (job) =>
+          !seenJobIdsRef.current.has(job.id) && job.status === "SEARCHING",
+      );
+
+      if (!incomingJobRef.current && newJobs.length > 0) {
+        const newest = newJobs[0];
+        incomingJobRef.current = newest;
+        setIncomingJob(newest);
+        setShowNewJobPopup(true);
+      }
+
+      mapped.forEach((job) => {
+        seenJobIdsRef.current.add(job.id);
+
+        if (job.unreadMessages && job.unreadMessages > 0) {
+          useUnreadMessagesStore.getState().setUnread(job.id, job.unreadMessages);
+        }
+      });
+    },
+    [closeIncomingJobPopup],
+  );
 
   const fetchWallet = useCallback(async () => {
     if (!userId) return;
@@ -218,83 +382,69 @@ const TaskerDashboardContent = () => {
   // =========================
   // FETCH JOBS
   // =========================
+  const fetchJobs = useCallback(async () => {
+    try {
+      const [available, myJobs] = await Promise.all([
+        getAvailableOrders(),
+        getMyTaskerOrders(),
+      ]);
+
+      const mapped = [...available, ...myJobs].map(mapOrderToJob);
+      syncIncomingJobState(mapped);
+      setJobs(mapped);
+    } catch (err) {
+      toast({
+        title: "Lỗi",
+        description: "Không thể tải dữ liệu",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [syncIncomingJobState, toast]);
+
+  const queueJobsRefresh = useCallback(() => {
+    if (typeof window === "undefined") return;
+
+    if (jobsRefreshTimeoutRef.current) {
+      window.clearTimeout(jobsRefreshTimeoutRef.current);
+    }
+
+    jobsRefreshTimeoutRef.current = window.setTimeout(() => {
+      void fetchJobs();
+    }, 1200);
+  }, [fetchJobs]);
+
   useEffect(() => {
-    const fetchJobs = async () => {
-      try {
-        const [available, myJobs] = await Promise.all([
-          getAvailableOrders(),
-          getMyTaskerOrders(),
-        ]);
+    void fetchJobs();
 
-        console.log("AVAILABLE:", available);
-        console.log("MY JOBS:", myJobs);
+    const interval = window.setInterval(() => {
+      void fetchJobs();
+    }, 30000);
 
-        const merged = [...available, ...myJobs];
+    const handleWindowFocus = () => {
+      void fetchJobs();
+    };
 
-        const mapped = merged.map(mapOrderToJob);
-        const activeIncomingJob = incomingJobRef.current;
-
-        if (activeIncomingJob) {
-          const refreshedIncomingJob = mapped.find(
-            (job) => job.id === activeIncomingJob.id,
-          );
-
-          if (!refreshedIncomingJob || refreshedIncomingJob.status !== "SEARCHING") {
-            closeIncomingJobPopup(activeIncomingJob.id);
-          } else {
-            incomingJobRef.current = refreshedIncomingJob;
-            setIncomingJob(refreshedIncomingJob);
-          }
-        }
-
-        // Detect new searching jobs
-        const newJobs = mapped.filter(
-          (job) =>
-            !seenJobIdsRef.current.has(job.id) && job.status === "SEARCHING",
-        );
-
-        if (!incomingJobRef.current && newJobs.length > 0) {
-          const newest = newJobs[0];
-
-          incomingJobRef.current = newest;
-          setIncomingJob(newest);
-          setShowNewJobPopup(true);
-
-          console.log("New job popup:", newest.id);
-        }
-
-        // Update seen ids
-        mapped.forEach((job) => {
-          seenJobIdsRef.current.add(job.id);
-        });
-
-        // Initialize unread message counts
-        mapped.forEach((job) => {
-          if (job.unreadMessages && job.unreadMessages > 0) {
-            useUnreadMessagesStore.getState().setUnread(job.id, job.unreadMessages);
-          }
-        });
-
-        setJobs(mapped);
-      } catch (err) {
-        toast({
-          title: "Lỗi",
-          description: "Không thể tải dữ liệu",
-          variant: "destructive",
-        });
-      } finally {
-        setLoading(false);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void fetchJobs();
       }
     };
 
-    fetchJobs();
+    window.addEventListener("focus", handleWindowFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
-    const interval = setInterval(() => {
-      fetchJobs();
-    }, 5000); // 5s
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", handleWindowFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
 
-    return () => clearInterval(interval);
-  }, [closeIncomingJobPopup, toast]);
+      if (jobsRefreshTimeoutRef.current) {
+        window.clearTimeout(jobsRefreshTimeoutRef.current);
+      }
+    };
+  }, [fetchJobs]);
 
   // =========================
   // FILTER
@@ -495,7 +645,7 @@ const TaskerDashboardContent = () => {
     void refreshChatMessages();
     const interval = window.setInterval(() => {
       void refreshChatMessages();
-    }, 3000);
+    }, 20000);
 
     return () => {
       active = false;
@@ -522,6 +672,7 @@ const TaskerDashboardContent = () => {
         setJobs((prev) => prev.filter((j) => j.id !== orderId));
         // Also close incoming popup if it matches
         closeIncomingJobPopup(orderId);
+        queueJobsRefresh();
 
         // Show toast notification
         toast({
@@ -548,6 +699,7 @@ const TaskerDashboardContent = () => {
             j.id === orderId ? { ...j, status: "ASSIGNED" } : j
           )
         );
+        queueJobsRefresh();
 
         // Show toast notification
         toast({
@@ -571,7 +723,7 @@ const TaskerDashboardContent = () => {
       socket.off('order:kept', handleOrderKept);
       console.log("Cleaned up order:cancelled and order:kept listeners");
     };
-  }, [userId]);
+  }, [closeIncomingJobPopup, queueJobsRefresh, toast, userId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -581,6 +733,7 @@ const TaskerDashboardContent = () => {
 
     const handleWalletRealtime = () => {
       scheduleWalletRefresh();
+      queueJobsRefresh();
     };
 
     const handleIncomingChatMessage = (message: any) => {
@@ -612,10 +765,8 @@ const TaskerDashboardContent = () => {
           return [...prev, nextMessage];
         });
       } else if (!isFromMe) {
-        // If message is from customer and chat is not open, increment unread
         useUnreadMessagesStore.getState().incrementUnread(incomingOrderId, 1);
 
-        // Also update jobs state to trigger re-render
         setJobs((prev) =>
           prev.map((job) =>
             job.id === incomingOrderId
@@ -628,91 +779,102 @@ const TaskerDashboardContent = () => {
 
     socket.on("chat:message", handleIncomingChatMessage);
 
-    // General order update listener - update/remove jobs immediately
-    const handleOrderStatus = (payload: any) => {
+    const applyRealtimeJobUpdate = (payload: RealtimeJobPayload) => {
       try {
-        const id = String(payload?.orderId ?? payload?.id ?? payload?._id ?? "");
+        const id = getRealtimeJobId(payload);
         if (!id) return;
-        scheduleWalletRefresh();
 
-        const status = String(payload?.status ?? payload?.data?.status ?? payload?.order?.status ?? "").toUpperCase();
+        const status = getRealtimeJobStatus(payload);
+        const realtimeJob = buildRealtimeJob(payload);
+        const shouldOpenIncoming =
+          Boolean(realtimeJob) &&
+          realtimeJob?.status === "SEARCHING" &&
+          !seenJobIdsRef.current.has(id) &&
+          !incomingJobRef.current;
 
         if (status === "CANCELLED" || status === "AUTO_CANCELLED") {
-          // remove job immediately from lists
-          setJobs((prev) => prev.filter((j) => j.id !== id));
-          // also close incoming popup if it matches
+          setJobs((prev) => prev.filter((job) => job.id !== id));
           closeIncomingJobPopup(id);
-        } else {
-          if (status && status !== "SEARCHING") {
-            closeIncomingJobPopup(id);
+          scheduleWalletRefresh();
+          queueJobsRefresh();
+          return;
+        }
+
+        if (realtimeJob) {
+          setJobs((prev) => {
+            const index = prev.findIndex((job) => job.id === id);
+
+            if (index === -1) {
+              return [realtimeJob, ...prev];
+            }
+
+            const current = prev[index];
+            const nextJob = {
+              ...current,
+              ...realtimeJob,
+              unreadMessages:
+                realtimeJob.unreadMessages ?? current.unreadMessages ?? 0,
+            };
+
+            const next = [...prev];
+            next[index] = nextJob;
+            return next;
+          });
+
+          if (realtimeJob.unreadMessages && realtimeJob.unreadMessages > 0) {
+            useUnreadMessagesStore
+              .getState()
+              .setUnread(id, realtimeJob.unreadMessages);
           }
 
-          // update job status if present in list
-          const allowed = new Set([
-            "SEARCHING",
-            "ASSIGNED",
-            "IN_PROGRESS",
-            "WAITING_CONFIRMATION",
-            "COMPLETED",
-            "CANCELLED",
-            "TIMEOUT",
-          ] as const);
-          const statusUp = String(status).toUpperCase();
-          if (allowed.has(statusUp as any)) {
-            setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, status: statusUp as any } : j)));
-          }
+          seenJobIdsRef.current.add(id);
+        } else if (status) {
+          setJobs((prev) =>
+            prev.map((job) =>
+              job.id === id ? { ...job, status: status as Job["status"] } : job,
+            ),
+          );
         }
+
+        if (shouldOpenIncoming && realtimeJob) {
+          incomingJobRef.current = realtimeJob;
+          setIncomingJob(realtimeJob);
+          setShowNewJobPopup(true);
+        }
+
+        if (status && status !== "SEARCHING") {
+          closeIncomingJobPopup(id);
+        }
+
+        scheduleWalletRefresh();
+        queueJobsRefresh();
       } catch (err) {
-        console.error('Error handling order status socket event', err);
+        console.error("Error handling realtime job update", err);
       }
     };
 
-    const handleOrderFull = (order: any) => {
-      try {
-        const id = String(order?._id ?? order?.id ?? "");
-        if (!id) return;
-        scheduleWalletRefresh();
-        const status = String(order?.status ?? "").toUpperCase();
-        if (status === "CANCELLED" || status === "AUTO_CANCELLED") {
-          setJobs((prev) => prev.filter((j) => j.id !== id));
-          closeIncomingJobPopup(id);
-        } else {
-          if (status && status !== "SEARCHING") {
-            closeIncomingJobPopup(id);
-          }
-
-          const allowed = new Set([
-            "SEARCHING",
-            "ASSIGNED",
-            "IN_PROGRESS",
-            "WAITING_CONFIRMATION",
-            "COMPLETED",
-            "CANCELLED",
-            "TIMEOUT",
-          ] as const);
-          const statusUp = String(status).toUpperCase();
-          if (allowed.has(statusUp as any)) {
-            setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, status: statusUp as any } : j)));
-          }
-        }
-      } catch (err) {
-        console.error('Error handling order full socket event', err);
-      }
-    };
-
-    socket.on('order:status-updated', handleOrderStatus);
-    socket.on('order:updated', handleOrderFull);
+    socket.on("order:created", applyRealtimeJobUpdate);
+    socket.on("order:status-updated", applyRealtimeJobUpdate);
+    socket.on("order:updated", applyRealtimeJobUpdate);
     socket.on("notification:new", handleWalletRealtime);
     socket.on("connect", handleWalletRealtime);
 
     return () => {
       socket.off("chat:message", handleIncomingChatMessage);
-      socket.off('order:status-updated', handleOrderStatus);
-      socket.off('order:updated', handleOrderFull);
+      socket.off("order:created", applyRealtimeJobUpdate);
+      socket.off("order:status-updated", applyRealtimeJobUpdate);
+      socket.off("order:updated", applyRealtimeJobUpdate);
       socket.off("notification:new", handleWalletRealtime);
       socket.off("connect", handleWalletRealtime);
     };
-  }, [chatOpen, chatOrderId, closeIncomingJobPopup, scheduleWalletRefresh, userId]);
+  }, [
+    chatOpen,
+    chatOrderId,
+    closeIncomingJobPopup,
+    queueJobsRefresh,
+    scheduleWalletRefresh,
+    userId,
+  ]);
 
   useEffect(() => {
     const shouldOpenChat = searchParams.get("chat") === "true";

@@ -269,7 +269,7 @@ const AdminHeader = () => {
     void fetchList();
     const timer = window.setInterval(() => {
       void fetchList();
-    }, 5000);
+    }, 30000);
 
     return () => {
       window.clearInterval(timer);

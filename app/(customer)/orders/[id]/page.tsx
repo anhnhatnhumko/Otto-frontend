@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useParams, usePathname, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 // import BottomNav from "@/components/BottomNav";
@@ -90,6 +90,130 @@ const toTrackingOrder = (data: Record<string, unknown>) => {
   };
 };
 
+type TrackingOrder = ReturnType<typeof toTrackingOrder>;
+
+const asRecord = (value: unknown) =>
+  value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+
+const pickRealtimeOrderSource = (payload: RealtimeOrderPayload) =>
+  asRecord(payload.data) ??
+  asRecord(payload.order) ??
+  asRecord(payload.payload) ??
+  asRecord(payload) ??
+  {};
+
+const formatTrackingRange = (start: string, end: string) => {
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return null;
+  }
+
+  return {
+    date: startDate.toLocaleDateString("vi-VN"),
+    time: `${startDate.toLocaleTimeString("vi-VN", {
+      hour: "2-digit",
+      minute: "2-digit",
+    })} - ${endDate.toLocaleTimeString("vi-VN", {
+      hour: "2-digit",
+      minute: "2-digit",
+    })}`,
+  };
+};
+
+const buildTrackingOrderPatch = (
+  payload: RealtimeOrderPayload,
+  current: TrackingOrder,
+): Partial<TrackingOrder> => {
+  const source = pickRealtimeOrderSource(payload);
+  const patch: Partial<TrackingOrder> = {};
+  const nextStatus = String(
+    source.status ?? payload.status ?? current.status ?? "",
+  ).trim();
+
+  if (nextStatus) {
+    patch.status = nextStatus;
+  }
+
+  if (typeof source.paymentStatus === "string") {
+    patch.paymentStatus = source.paymentStatus;
+  }
+
+  if (typeof source.isPaid === "boolean") {
+    patch.isPaid = source.isPaid;
+  } else if (String(source.paymentStatus ?? "").toUpperCase() === "PAID") {
+    patch.isPaid = true;
+  }
+
+  if (typeof source.totalPrice === "number") {
+    patch.price = source.totalPrice;
+  }
+
+  if (typeof source.cancelReason === "string") {
+    patch.cancelReason = source.cancelReason;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(source, "overdueWarningSentAt")) {
+    patch.overdueWarningSentAt = source.overdueWarningSentAt
+      ? String(source.overdueWarningSentAt)
+      : null;
+  }
+
+  if (typeof source.address === "string" && source.address.trim()) {
+    patch.address = source.address;
+  } else if (
+    typeof source.addressDetail === "string" &&
+    source.addressDetail.trim()
+  ) {
+    patch.address = source.addressDetail;
+  }
+
+  const nextStartTime =
+    typeof source.startTime === "string" && source.startTime
+      ? source.startTime
+      : current.startTime;
+  const nextEndTime =
+    typeof source.endTime === "string" && source.endTime
+      ? source.endTime
+      : current.endTime;
+  const nextRange = formatTrackingRange(nextStartTime, nextEndTime);
+
+  if (typeof source.startTime === "string" && source.startTime) {
+    patch.startTime = new Date(source.startTime).toISOString();
+  }
+
+  if (typeof source.endTime === "string" && source.endTime) {
+    patch.endTime = new Date(source.endTime).toISOString();
+  }
+
+  if (nextRange) {
+    patch.date = nextRange.date;
+    patch.time = nextRange.time;
+  }
+
+  const tasker =
+    asRecord(source.tasker) ??
+    asRecord(source.taskerId) ??
+    null;
+
+  if (tasker) {
+    patch.tasker = {
+      name: String(
+        tasker.name ?? tasker.fullName ?? current.tasker?.name ?? "",
+      ).trim(),
+      avatar: String(tasker.avatar ?? current.tasker?.avatar ?? "").trim(),
+      rating: Number(tasker.rating ?? current.tasker?.rating ?? 0),
+      completedJobs: Number(
+        tasker.completedJobs ?? current.tasker?.completedJobs ?? 0,
+      ),
+      phone: String(tasker.phone ?? current.tasker?.phone ?? "").trim(),
+    };
+  }
+
+  return patch;
+};
+
 function OrderTrackingPageContent() {
   const { toast } = useToast();
   const router = useRouter();
@@ -109,6 +233,7 @@ function OrderTrackingPageContent() {
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [chatPeerName, setChatPeerName] = useState<string>("");
   const [cancelMessage, setCancelMessage] = useState<string | null>(null);
+  const queuedRefreshRef = useRef<number | null>(null);
 
   // Popup quá hạn
   const {
@@ -186,7 +311,19 @@ function OrderTrackingPageContent() {
         variant: "destructive",
       });
 
-      await fetchOrder(true);
+      setOrder((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: "CANCELLED",
+              cancelReason:
+                typeof data?.cancelReason === "string"
+                  ? data.cancelReason
+                  : prev.cancelReason,
+            }
+          : prev,
+      );
+      queueOrderRefresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Đã xảy ra lỗi khi hủy đơn hàng.";
       setCancelMessage(message);
@@ -244,11 +381,69 @@ function OrderTrackingPageContent() {
     }
   }, [orderId, overdueOpen, showOverduePopup, closePopupIfInvalid]);
 
+  const queueOrderRefresh = useCallback(() => {
+    if (typeof window === "undefined") return;
+
+    if (queuedRefreshRef.current) {
+      window.clearTimeout(queuedRefreshRef.current);
+    }
+
+    queuedRefreshRef.current = window.setTimeout(() => {
+      void fetchOrder(true);
+    }, 1200);
+  }, [fetchOrder]);
+
   useEffect(() => {
     if (!orderId || orderId === "undefined") return;
 
     void fetchOrder(false);
   }, [orderId, fetchOrder]);
+
+  useEffect(() => {
+    if (!order) return;
+
+    const overdueWarningSentAt = (order as any).overdueWarningSentAt;
+
+    if (
+      String(order.status).toUpperCase() === "ASSIGNED" &&
+      Boolean(overdueWarningSentAt) &&
+      !overdueOpen
+    ) {
+      showOverduePopup(order);
+    }
+
+    closePopupIfInvalid(order);
+  }, [closePopupIfInvalid, order, overdueOpen, showOverduePopup]);
+
+  useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined" && queuedRefreshRef.current) {
+        window.clearTimeout(queuedRefreshRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!orderId || orderId === "undefined") return;
+
+    const handleWindowFocus = () => {
+      void fetchOrder(true);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void fetchOrder(true);
+      }
+    };
+
+    window.addEventListener("focus", handleWindowFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", handleWindowFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [fetchOrder, orderId]);
 
   // Auto-open chat when navigated from a notification with ?chat=true
   const searchParams = useSearchParams();
@@ -272,7 +467,7 @@ function OrderTrackingPageContent() {
     if (!socket) {
       const pollInterval = window.setInterval(() => {
         void fetchOrder(true);
-      }, 15000);
+      }, 30000);
 
       return () => {
         window.clearInterval(pollInterval);
@@ -291,10 +486,22 @@ function OrderTrackingPageContent() {
       const changedOrderId = getRealtimeOrderId(payload);
       if (changedOrderId !== currentOrderId) return;
 
-      void fetchOrder(true);
+      setOrder((prev) => {
+        if (!prev) return prev;
+
+        return {
+          ...prev,
+          ...buildTrackingOrderPatch(payload, prev),
+        };
+      });
+      setLastSyncedAt(new Date().toLocaleTimeString("vi-VN"));
+      queueOrderRefresh();
     };
 
-    const handleConnect = () => setSocketOnline(true);
+    const handleConnect = () => {
+      setSocketOnline(true);
+      queueOrderRefresh();
+    };
     const handleDisconnect = () => setSocketOnline(false);
 
     if (socket.connected) {
@@ -318,7 +525,13 @@ function OrderTrackingPageContent() {
         const fromMe = String(msg.senderId ?? '') === userId;
         const time = new Date(msg.createdAt ?? Date.now()).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
         const chatMsg = { id: mid, fromMe, text: msg.text, time, read: true };
-        setChatMessages((prev) => [...prev, chatMsg]);
+        setChatMessages((prev) => {
+          if (prev.some((item) => item.id === chatMsg.id)) {
+            return prev;
+          }
+
+          return [...prev, chatMsg];
+        });
       } catch (err) {
         console.error('CHAT MSG ERR', err);
       }
@@ -328,7 +541,7 @@ function OrderTrackingPageContent() {
 
     const pollInterval = window.setInterval(() => {
       void fetchOrder(true);
-    }, 15000);
+    }, 30000);
 
     return () => {
       socket.off("connect", handleConnect);
@@ -343,7 +556,7 @@ function OrderTrackingPageContent() {
 
       window.clearInterval(pollInterval);
     };
-  }, [authLoading, user?.id, user?._id, user?.role, orderId, fetchOrder]);
+  }, [authLoading, user?.id, user?._id, user?.role, orderId, fetchOrder, queueOrderRefresh]);
 
   // open chat modal and load messages
   const handleOpenChat = async () => {
@@ -402,7 +615,7 @@ function OrderTrackingPageContent() {
     void refreshChatMessages();
     const interval = window.setInterval(() => {
       void refreshChatMessages();
-    }, 3000);
+    }, 20000);
 
     return () => {
       active = false;
