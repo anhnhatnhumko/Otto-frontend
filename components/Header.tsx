@@ -74,7 +74,7 @@ const Header = () => {
     }
 
     return (
-      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-hero text-white font-semibold">
+      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-hero font-semibold text-white">
         {avatarFallback}
       </div>
     );
@@ -105,7 +105,7 @@ const Header = () => {
         </nav>
 
         <div className="flex items-center gap-2 md:gap-4">
-          {!loadingUser && user && <NotificationCenter />}
+          <NotificationCenter />
 
           <button
             onClick={toggleTheme}
@@ -113,9 +113,15 @@ const Header = () => {
             aria-label="Chuyển đổi sáng/tối"
           >
             {isDarkMode ? (
-              <Sun size={18} className="text-foreground md:h-[18px] md:w-[18px]" />
+              <Sun
+                size={18}
+                className="text-foreground md:h-[18px] md:w-[18px]"
+              />
             ) : (
-              <Moon size={18} className="text-foreground md:h-[18px] md:w-[18px]" />
+              <Moon
+                size={18}
+                className="text-foreground md:h-[18px] md:w-[18px]"
+              />
             )}
           </button>
 

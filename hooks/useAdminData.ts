@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "@/hooks/use-toast";
 
@@ -294,6 +294,10 @@ export function useAdminData() {
         userId: string;
         role: string;
     } | null>(null);
+    const serviceNameById = useMemo(
+        () => Object.fromEntries(services.map((service) => [service.id, service.name])),
+        [services],
+    );
 
     // ================= RELOAD =================
 
@@ -375,11 +379,6 @@ export function useAdminData() {
 
             const data: AdminListResponse<ApiUser> = await res.json();
 
-            const serviceNameById = Object.fromEntries(
-                services.map((s) => [s.id, s.name])
-            );
-
-
             const newTaskers = getListData(data).map((t) =>
                 mapTasker(t, serviceNameById)
             );
@@ -388,7 +387,7 @@ export function useAdminData() {
         } catch (err) {
             console.error(err);
         }
-    }, [services, provinceId, wardId]);
+    }, [provinceId, serviceNameById, wardId]);
 
     // ================= INITIAL LOAD =================
 
@@ -560,14 +559,23 @@ export function useAdminData() {
     }, [reloadOrders, maybeReloadServices]);
 
     const onUserUpsert = useCallback((user: ApiUser) => {
-        const mapped = mapUser(user);
-        setUsers((prev) => upsertById(prev, mapped));
-    }, []);
+        const normalizedRole = String(user.role ?? "").trim().toUpperCase();
+
+        if (normalizedRole === "TASKER") {
+            const mappedTasker = mapTasker(user, serviceNameById);
+            setTaskers((prev) => upsertById(prev, mappedTasker));
+            return;
+        }
+
+        const mappedUser = mapUser(user);
+        setUsers((prev) => upsertById(prev, mappedUser));
+    }, [serviceNameById]);
 
     const onUserDeleted = useCallback((payload: SocketIdPayload) => {
         const deletedId = getApiId(payload);
         if (!deletedId) return;
         setUsers((prev) => prev.filter((u) => u.id !== deletedId));
+        setTaskers((prev) => prev.filter((tasker) => tasker.id !== deletedId));
     }, []);
 
     const onServiceDeleted = useCallback(
@@ -621,6 +629,8 @@ export function useAdminData() {
         setUsers,
         setServices,
         setTaskers,
+        reloadOrders,
+        reloadUsers,
         reloadServices,
         reloadTaskers,
         isRealtimeConnected,

@@ -1,12 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import {
-  Activity,
   BarChart3,
   Briefcase,
   ShoppingCart,
@@ -30,14 +28,14 @@ import { OrderDetailDialog } from "@/components/dialogs/OrderDetailDialog";
 import { UserDetailDialog } from "@/components/dialogs/UserDetailDialog";
 import { TaskerDetailDialog } from "@/components/dialogs/TaskerDetailDialog";
 import { ServiceFormDialog } from "@/components/dialogs/ServiceFormDialog";
-import { API_URL } from "./constants";
+import { extractUserFacingErrorMessage } from "@/lib/user-facing-error";
 import type {
-  Order,
-  User,
-  Service,
-  Tasker,
-  ServiceFormData,
   ConfirmAction,
+  Order,
+  Service,
+  ServiceFormData,
+  Tasker,
+  User,
 } from "./types";
 
 const INITIAL_SERVICE_FORM: ServiceFormData = {
@@ -55,15 +53,15 @@ export default function Admin() {
     users,
     services,
     taskers,
-    isRealtimeConnected,
-    // setOrders,
-    // setUsers,
-    // setTaskers,
+    setOrders,
+    setUsers,
+    setTaskers,
+    reloadOrders,
+    reloadUsers,
     reloadServices,
     reloadTaskers,
   } = useAdminData();
 
-  // Dialog states
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -81,11 +79,85 @@ export default function Admin() {
   const [provinceId, setProvinceId] = useState("all");
   const [wardId, setWardId] = useState("all");
   const [loadingAction, setLoadingAction] = useState(false);
+  const pendingResyncTimersRef = useRef<number[]>([]);
 
-  // Action handlers
+  useEffect(() => {
+    return () => {
+      pendingResyncTimersRef.current.forEach((timerId) =>
+        window.clearTimeout(timerId),
+      );
+      pendingResyncTimersRef.current = [];
+    };
+  }, []);
+
+  const queueRapidResync = (
+    loaders: Array<(() => Promise<void> | void) | undefined>,
+  ) => {
+    pendingResyncTimersRef.current.forEach((timerId) =>
+      window.clearTimeout(timerId),
+    );
+    pendingResyncTimersRef.current = [];
+
+    [0, 1000, 2500, 4000].forEach((delay) => {
+      const timerId = window.setTimeout(() => {
+        loaders.forEach((loader) => {
+          if (!loader) return;
+          void Promise.resolve(loader());
+        });
+      }, delay);
+
+      pendingResyncTimersRef.current.push(timerId);
+    });
+  };
+
   const openConfirmDialog = (type: string, id: string, action: string) => {
     setConfirmAction({ type, id, action });
     setIsConfirmDialogOpen(true);
+  };
+
+  const applyOrderStatus = (orderId: string, status: Order["status"]) => {
+    setOrders((prev) =>
+      prev.map((order) => (order.id === orderId ? { ...order, status } : order)),
+    );
+    setSelectedOrder((prev) =>
+      prev && prev.id === orderId ? { ...prev, status } : prev,
+    );
+  };
+
+  const applyUserStatus = (userId: string, status: User["status"]) => {
+    setUsers((prev) =>
+      prev.map((item) => (item.id === userId ? { ...item, status } : item)),
+    );
+    setSelectedUser((prev) =>
+      prev && prev.id === userId ? { ...prev, status } : prev,
+    );
+  };
+
+  const applyTaskerStatus = (
+    taskerId: string,
+    status: Tasker["status"],
+    verified?: boolean,
+  ) => {
+    setTaskers((prev) =>
+      prev.map((item) =>
+        item.id === taskerId
+          ? {
+              ...item,
+              status,
+              ...(typeof verified === "boolean" ? { verified } : {}),
+            }
+          : item,
+      ),
+    );
+    setSelectedTasker((prev) =>
+      prev && prev.id === taskerId
+        ? {
+            ...prev,
+            status,
+            ...(typeof verified === "boolean" ? { verified } : {}),
+          }
+        : prev,
+    );
   };
 
   const handleConfirmAction = async () => {
@@ -94,52 +166,101 @@ export default function Admin() {
     setLoadingAction(true);
 
     const { id, action } = confirmAction;
+    const rollbackSteps: Array<() => void> = [];
 
     try {
       let response: Response | null = null;
 
       switch (action) {
-        case "confirm_order":
+        case "confirm_order": {
+          const previousStatus = orders.find((order) => order.id === id)?.status;
+          if (previousStatus) {
+            applyOrderStatus(id, "confirmed");
+            rollbackSteps.push(() => applyOrderStatus(id, previousStatus));
+          }
+
           response = await fetch(`/api/admin/orders/${id}/confirm`, {
             method: "PATCH",
             credentials: "include",
           });
           break;
+        }
 
-        case "cancel_order":
+        case "cancel_order": {
+          const previousStatus = orders.find((order) => order.id === id)?.status;
+          if (previousStatus) {
+            applyOrderStatus(id, "cancelled");
+            rollbackSteps.push(() => applyOrderStatus(id, previousStatus));
+          }
+
           response = await fetch(`/api/admin/orders/${id}/cancel`, {
             method: "PATCH",
             credentials: "include",
           });
           break;
+        }
 
-        case "complete_order":
+        case "complete_order": {
+          const previousStatus = orders.find((order) => order.id === id)?.status;
+          if (previousStatus) {
+            applyOrderStatus(id, "completed");
+            rollbackSteps.push(() => applyOrderStatus(id, previousStatus));
+          }
+
           response = await fetch(`/api/admin/orders/${id}/complete`, {
             method: "PATCH",
             credentials: "include",
           });
           break;
+        }
 
-        case "ban_user":
+        case "ban_user": {
+          const previousStatus = users.find((user) => user.id === id)?.status;
+          if (previousStatus) {
+            applyUserStatus(id, "banned");
+            rollbackSteps.push(() => applyUserStatus(id, previousStatus));
+          }
+
           response = await fetch(`/api/admin/users/${id}/ban`, {
             method: "PATCH",
             credentials: "include",
           });
           break;
+        }
 
-        case "activate_user":
+        case "activate_user": {
+          const previousStatus = users.find((user) => user.id === id)?.status;
+          if (previousStatus) {
+            applyUserStatus(id, "active");
+            rollbackSteps.push(() => applyUserStatus(id, previousStatus));
+          }
+
           response = await fetch(`/api/admin/users/${id}/activate`, {
             method: "PATCH",
             credentials: "include",
           });
           break;
+        }
 
-        case "approve_tasker":
+        case "approve_tasker": {
+          const previousTasker = taskers.find((tasker) => tasker.id === id);
+          if (previousTasker) {
+            applyTaskerStatus(id, "active", true);
+            rollbackSteps.push(() =>
+              applyTaskerStatus(
+                id,
+                previousTasker.status,
+                previousTasker.verified,
+              ),
+            );
+          }
+
           response = await fetch(`/api/admin/taskers/${id}/approve`, {
             method: "PATCH",
             credentials: "include",
           });
           break;
+        }
 
         case "reject_tasker":
           response = await fetch(`/api/admin/taskers/${id}/reject`, {
@@ -148,19 +269,45 @@ export default function Admin() {
           });
           break;
 
-        case "ban_tasker":
+        case "ban_tasker": {
+          const previousTasker = taskers.find((tasker) => tasker.id === id);
+          if (previousTasker) {
+            applyTaskerStatus(id, "banned", previousTasker.verified);
+            rollbackSteps.push(() =>
+              applyTaskerStatus(
+                id,
+                previousTasker.status,
+                previousTasker.verified,
+              ),
+            );
+          }
+
           response = await fetch(`/api/admin/taskers/${id}/ban`, {
             method: "PATCH",
             credentials: "include",
           });
           break;
+        }
 
-        case "activate_tasker":
+        case "activate_tasker": {
+          const previousTasker = taskers.find((tasker) => tasker.id === id);
+          if (previousTasker) {
+            applyTaskerStatus(id, "active", previousTasker.verified);
+            rollbackSteps.push(() =>
+              applyTaskerStatus(
+                id,
+                previousTasker.status,
+                previousTasker.verified,
+              ),
+            );
+          }
+
           response = await fetch(`/api/admin/taskers/${id}/activate`, {
             method: "PATCH",
             credentials: "include",
           });
           break;
+        }
 
         case "delete_service":
           response = await fetch(`/api/services/${id}`, {
@@ -171,17 +318,60 @@ export default function Admin() {
       }
 
       if (!response?.ok) {
-        throw new Error(`Action failed: ${action}`);
+        let payload: unknown = null;
+        const failedResponse = response;
+
+        try {
+          payload = failedResponse ? await failedResponse.json() : null;
+        } catch {
+          payload = null;
+        }
+
+        throw new Error(
+          extractUserFacingErrorMessage(
+            payload,
+            "Không thể thực hiện thao tác này.",
+          ),
+        );
       }
 
       toast({
         title: "Thành công",
-        description: "Thao tác đã được thực hiện",
+        description: "Giao diện đã được cập nhật ngay lập tức.",
       });
-    } catch {
+
+      switch (action) {
+        case "confirm_order":
+        case "cancel_order":
+        case "complete_order":
+          queueRapidResync([reloadOrders]);
+          break;
+        case "ban_user":
+        case "activate_user":
+          queueRapidResync([reloadUsers]);
+          break;
+        case "approve_tasker":
+        case "reject_tasker":
+        case "ban_tasker":
+        case "activate_tasker":
+          queueRapidResync([reloadTaskers]);
+          break;
+        case "delete_service":
+          queueRapidResync([reloadServices, reloadTaskers]);
+          break;
+      }
+    } catch (error) {
+      rollbackSteps
+        .slice()
+        .reverse()
+        .forEach((rollback) => rollback());
+
       toast({
         title: "Lỗi",
-        description: "Không thể thực hiện thao tác",
+        description: extractUserFacingErrorMessage(
+          error instanceof Error ? error.message : error,
+          "Không thể thực hiện thao tác này.",
+        ),
         variant: "destructive",
       });
     } finally {
@@ -212,7 +402,7 @@ export default function Admin() {
     if (!serviceForm.name || !serviceForm.price) {
       toast({
         title: "Lỗi",
-        description: "Vui lòng điền đầy đủ thông tin",
+        description: "Vui lòng điền đầy đủ thông tin.",
         variant: "destructive",
       });
       return;
@@ -238,7 +428,7 @@ export default function Admin() {
         if (!res.ok) {
           throw new Error("update_service_failed");
         }
-        toast({ title: "Thành công", description: "Đã cập nhật dịch vụ" });
+        toast({ title: "Thành công", description: "Đã cập nhật dịch vụ." });
       } else {
         const res = await fetch(`/api/services`, {
           method: "POST",
@@ -249,7 +439,7 @@ export default function Admin() {
         if (!res.ok) {
           throw new Error("create_service_failed");
         }
-        toast({ title: "Thành công", description: "Đã thêm dịch vụ mới" });
+        toast({ title: "Thành công", description: "Đã thêm dịch vụ mới." });
       }
 
       await reloadServices();
@@ -257,14 +447,14 @@ export default function Admin() {
     } catch {
       toast({
         title: "Lỗi",
-        description: "Không thể lưu dịch vụ",
+        description: "Không thể lưu dịch vụ.",
         variant: "destructive",
       });
     }
   };
 
   const handleToggleServiceStatus = async (serviceId: string) => {
-    const service = services.find((s) => s.id === serviceId);
+    const service = services.find((item) => item.id === serviceId);
     if (!service) return;
 
     try {
@@ -276,42 +466,30 @@ export default function Admin() {
           credentials: "include",
         },
       );
+
       if (!res.ok) {
         throw new Error("toggle_service_failed");
       }
+
       await reloadServices();
       toast({
         title: "Thành công",
-        description: "Đã cập nhật trạng thái dịch vụ",
+        description: "Đã cập nhật trạng thái dịch vụ.",
       });
     } catch {
       toast({
         title: "Lỗi",
-        description: "Không thể cập nhật trạng thái",
+        description: "Không thể cập nhật trạng thái dịch vụ.",
         variant: "destructive",
       });
     }
   };
 
-  // const handleToggleTaskerStatus = (taskerId: string) => {
-  //   setTaskers((prev) =>
-  //     prev.map((t) =>
-  //       t.id === taskerId
-  //         ? { ...t, status: t.status === "active" ? "inactive" : "active" }
-  //         : t,
-  //     ),
-  //   );
-  //   toast({
-  //     title: "Thành công",
-  //     description: "Đã cập nhật trạng thái Tasker",
-  //   });
-  // };
-
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col bg-background">
         <AdminHeader />
-        <main className="flex-1 container mx-auto px-4 py-8">
+        <main className="container mx-auto flex-1 px-4 py-8">
           <Card className="shadow-card">
             <CardContent className="py-10 text-center text-muted-foreground">
               Đang tải dữ liệu admin...
@@ -327,25 +505,18 @@ export default function Admin() {
     <div className="min-h-screen flex flex-col bg-background">
       <AdminHeader />
 
-      <main className="flex-1 container mx-auto px-4 py-8">
+      <main className="container mx-auto flex-1 px-4 py-8">
         <div className="mb-8">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-3xl font-bold text-foreground">Quản trị viên</h1>
-            {/* <Badge
-              variant={isRealtimeConnected ? "secondary" : "outline"}
-              className="gap-1.5"
-            >
-              <Activity className="h-3.5 w-3.5" />
-              {isRealtimeConnected ? "Realtime: Online" : "Realtime: Offline"}
-            </Badge> */}
           </div>
-          <p className="text-muted-foreground mt-2">
+          <p className="mt-2 text-muted-foreground">
             Quản lý đơn hàng, người dùng, dịch vụ và xem thống kê
           </p>
         </div>
 
         <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="flex flex-wrap h-auto gap-1 w-full lg:w-auto">
+          <TabsList className="flex h-auto w-full flex-wrap gap-1 lg:w-auto">
             <TabsTrigger value="dashboard" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
               <span className="hidden sm:inline">Thống kê</span>
@@ -366,22 +537,6 @@ export default function Admin() {
               <Briefcase className="h-4 w-4" />
               <span className="hidden sm:inline">Dịch vụ</span>
             </TabsTrigger>
-            {/* <TabsTrigger value="notifications" className="flex items-center gap-2">
-              <Bell className="h-4 w-4" />
-              <span className="hidden sm:inline">Thông báo</span>
-            </TabsTrigger>
-            <TabsTrigger value="promotions" className="flex items-center gap-2">
-              <Tag className="h-4 w-4" />
-              <span className="hidden sm:inline">Khuyến mãi</span>
-            </TabsTrigger>
-            <TabsTrigger value="reviews" className="flex items-center gap-2">
-              <MessageSquare className="h-4 w-4" />
-              <span className="hidden sm:inline">Đánh giá</span>
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="flex items-center gap-2">
-              <Settings className="h-4 w-4" />
-              <span className="hidden sm:inline">Cài đặt</span>
-            </TabsTrigger> */}
           </TabsList>
 
           <TabsContent value="dashboard">
@@ -462,7 +617,6 @@ export default function Admin() {
 
       <Footer />
 
-      {/* Dialogs */}
       <OrderDetailDialog
         open={isOrderDetailOpen}
         onOpenChange={setIsOrderDetailOpen}

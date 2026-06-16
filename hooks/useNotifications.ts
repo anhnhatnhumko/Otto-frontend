@@ -1,24 +1,29 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
-import { connectSocket } from '@/lib/socket';
-import { useAuth } from './useAuth';
-import { useUserStore } from '@/app/store/useUserStore';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { connectSocket } from "@/lib/socket";
+import { useUserStore } from "@/app/store/useUserStore";
 import {
+  buildOptimisticChatNotification,
   buildOptimisticOrderAcceptedNotification,
+  buildOptimisticTaskerOrderCancelledNotification,
+  mergeFetchedNotifications,
   upsertRealtimeNotification,
-} from '@/lib/realtime-notification';
+} from "@/lib/realtime-notification";
+
+const POLLING_INTERVAL_MS = 1000;
 
 const fetchAPI = async (path: string, options: RequestInit = {}) => {
   const response = await fetch(`/api${path}`, {
-    credentials: 'include',
+    credentials: "include",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...options.headers,
     },
+    cache: "no-store",
     ...options,
   });
 
   if (!response.ok) {
-    throw new Error(`API error: ${response.statusText}`);
+    throw new Error(String(response.status));
   }
 
   return response.json();
@@ -38,145 +43,294 @@ export interface Notification {
   updatedAt: string;
 }
 
+type AuthLikeUser = {
+  _id?: string;
+  id?: string;
+  role?: string;
+  fullName?: string;
+  email?: string;
+  avatar?: string;
+};
+
+const normalizeUser = (user: AuthLikeUser | null) => {
+  if (!user) {
+    return null;
+  }
+
+  const userId = String(user._id ?? user.id ?? "").trim();
+  if (!userId) {
+    return null;
+  }
+
+  return {
+    _id: userId,
+    fullName: String(user.fullName ?? "").trim(),
+    email: String(user.email ?? "").trim(),
+    role: String(user.role ?? "").trim(),
+    avatar: user.avatar,
+  };
+};
+
 export const useNotifications = () => {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
-  const { user: authUser } = useAuth();
   const storeUser = useUserStore((state) => state.user);
+  const [resolvedUser, setResolvedUser] = useState<AuthLikeUser | null>(null);
+  const [hasResolvedIdentity, setHasResolvedIdentity] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const isFetchingRef = useRef(false);
 
-  const activeUser = useMemo(() => storeUser ?? authUser, [storeUser, authUser]);
-  const userId = useMemo(
-    () => String(activeUser?._id ?? activeUser?.id ?? ''),
-    [activeUser],
+  const activeUser = useMemo(
+    () => normalizeUser(storeUser) ?? normalizeUser(resolvedUser),
+    [resolvedUser, storeUser],
   );
+  const userId = useMemo(() => String(activeUser?._id ?? "").trim(), [activeUser]);
   const userRole = useMemo(
-    () => String(activeUser?.role ?? 'CUSTOMER'),
+    () => String(activeUser?.role ?? "CUSTOMER").trim().toUpperCase(),
     [activeUser],
   );
+  const hasIdentity = Boolean(userId);
 
-  // Tính toán unread count từ notifications
-  const updateUnreadCount = useCallback((notifs: Notification[]) => {
-    const count = notifs.filter((n) => !n.isRead).length;
-    setUnreadCount(count);
-  }, []);
+  const unreadCount = useMemo(
+    () => notifications.filter((notification) => !notification.isRead).length,
+    [notifications],
+  );
 
-  // Tải danh sách notification từ server
+  useEffect(() => {
+    let cancelled = false;
+
+    const bootstrapIdentity = async () => {
+      const normalizedStoreUser = normalizeUser(storeUser);
+
+      if (normalizedStoreUser) {
+        setResolvedUser(normalizedStoreUser);
+        setHasResolvedIdentity(true);
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/auth/me", {
+          credentials: "include",
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          if (!cancelled) {
+            setResolvedUser(null);
+          }
+          return;
+        }
+
+        const data = (await response.json()) as AuthLikeUser;
+        if (!cancelled) {
+          setResolvedUser(data);
+        }
+      } catch {
+        if (!cancelled) {
+          setResolvedUser(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setHasResolvedIdentity(true);
+        }
+      }
+    };
+
+    void bootstrapIdentity();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [storeUser]);
+
   const loadNotifications = useCallback(async () => {
-    if (!userId) return;
+    if (!userId || isFetchingRef.current) {
+      return;
+    }
+
+    isFetchingRef.current = true;
 
     try {
       setIsLoading(true);
       const response = await fetchAPI(`/notifications/user/${userId}`);
-      if (response && Array.isArray(response)) {
-        setNotifications(response);
+
+      if (Array.isArray(response)) {
+        setNotifications((prev) =>
+          mergeFetchedNotifications(response as Notification[], prev),
+        );
       }
     } catch (error) {
-      console.error('Failed to load notifications:', error);
+      const message =
+        error instanceof Error ? error.message : String(error ?? "");
+
+      if (message === "401" || message === "403") {
+        setNotifications([]);
+      } else {
+        console.error("Failed to load notifications:", error);
+      }
     } finally {
+      isFetchingRef.current = false;
       setIsLoading(false);
     }
   }, [userId]);
 
-  useEffect(() => {
-    updateUnreadCount(notifications);
-  }, [notifications, updateUnreadCount]);
-
-  // Đánh dấu notification là đã đọc
   const markAsRead = useCallback((notificationId: string) => {
-    fetchAPI(`/notifications/${notificationId}/read`, {
-      method: 'PATCH',
+    void fetchAPI(`/notifications/${notificationId}/read`, {
+      method: "PATCH",
     })
       .then(() => {
         setNotifications((prev) =>
-          prev.map((n) =>
-            n._id === notificationId ? { ...n, isRead: true } : n
-          )
+          prev.map((notification) =>
+            notification._id === notificationId
+              ? { ...notification, isRead: true }
+              : notification,
+          ),
         );
       })
-      .catch((error) => console.error('Failed to mark notification as read:', error));
+      .catch((error) => console.error("Failed to mark notification as read:", error));
   }, []);
 
-  // Đánh dấu tất cả notification là đã đọc
   const markAllAsRead = useCallback(async () => {
     if (!userId) return;
 
     try {
       await fetchAPI(`/notifications/user/${userId}/read-all`, {
-        method: 'PATCH',
+        method: "PATCH",
       });
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-      setUnreadCount(0);
+      setNotifications((prev) =>
+        prev.map((notification) => ({ ...notification, isRead: true })),
+      );
     } catch (error) {
-      console.error('Failed to mark all notifications as read:', error);
+      console.error("Failed to mark all notifications as read:", error);
     }
   }, [userId]);
 
-  // Xóa notification
   const deleteNotification = useCallback((notificationId: string) => {
-    fetchAPI(`/notifications/${notificationId}`, {
-      method: 'DELETE',
+    void fetchAPI(`/notifications/${notificationId}`, {
+      method: "DELETE",
     })
       .then(() => {
-        setNotifications((prev) => prev.filter((n) => n._id !== notificationId));
+        setNotifications((prev) =>
+          prev.filter((notification) => notification._id !== notificationId),
+        );
       })
-      .catch((error) => console.error('Failed to delete notification:', error));
+      .catch((error) => console.error("Failed to delete notification:", error));
   }, []);
 
-  // Setup socket connection và lắng nghe real-time notification
   useEffect(() => {
-    if (!userId) {
+    if (!hasResolvedIdentity || !userId) {
       return;
     }
 
-    try {
-      const socket = connectSocket(userId, userRole);
+    const socket = connectSocket(userId, userRole);
+    if (!socket) {
+      return;
+    }
 
-      if (!socket) {
+    const handleNewNotification = (notification: Notification) => {
+      setNotifications((prev) => upsertRealtimeNotification(prev, notification));
+    };
+
+    const handleIncomingChat = (payload: unknown) => {
+      const nextNotification = buildOptimisticChatNotification(payload, userId);
+      if (!nextNotification) {
         return;
       }
 
-      // Lắng nghe notification mới
-      const handleNewNotification = (notification: Notification) => {
-        setNotifications((prev) => upsertRealtimeNotification(prev, notification));
-      };
+      setNotifications((prev) =>
+        upsertRealtimeNotification(prev, nextNotification as Notification),
+      );
+    };
 
-      const handleOrderRealtime = (payload: unknown) => {
-        if (userRole !== 'CUSTOMER') return;
+    const handleCustomerOrderRealtime = (payload: unknown) => {
+      if (userRole !== "CUSTOMER") {
+        return;
+      }
 
-        const optimistic = buildOptimisticOrderAcceptedNotification(payload);
-        if (!optimistic) return;
+      const nextNotification = buildOptimisticOrderAcceptedNotification(payload);
+      if (!nextNotification) {
+        return;
+      }
 
-        setNotifications((prev) =>
-          upsertRealtimeNotification(prev, optimistic as Notification)
-        );
-      };
+      setNotifications((prev) =>
+        upsertRealtimeNotification(prev, nextNotification as Notification),
+      );
+    };
 
-      const handleConnect = () => {
-        loadNotifications();
-      };
+    const handleTaskerOrderCancelled = (payload: unknown) => {
+      if (userRole !== "TASKER") {
+        return;
+      }
 
-      socket.on('notification:new', handleNewNotification);
-      socket.on('order:updated', handleOrderRealtime);
-      socket.on('order:status-updated', handleOrderRealtime);
-      socket.on('connect', handleConnect);
-      loadNotifications();
+      const nextNotification =
+        buildOptimisticTaskerOrderCancelledNotification(payload);
+      if (!nextNotification) {
+        return;
+      }
 
-      return () => {
-        socket.off('notification:new', handleNewNotification);
-        socket.off('order:updated', handleOrderRealtime);
-        socket.off('order:status-updated', handleOrderRealtime);
-        socket.off('connect', handleConnect);
-      };
-    } catch (error) {
-      console.error('Failed to setup notifications:', error);
+      setNotifications((prev) =>
+        upsertRealtimeNotification(prev, nextNotification as Notification),
+      );
+    };
+
+    const handleReconnect = () => {
+      void loadNotifications();
+    };
+
+    socket.on("notification:new", handleNewNotification);
+    socket.on("chat:message", handleIncomingChat);
+    socket.on("order:updated", handleCustomerOrderRealtime);
+    socket.on("order:status-updated", handleCustomerOrderRealtime);
+    socket.on("order:cancelled", handleTaskerOrderCancelled);
+    socket.on("connect", handleReconnect);
+
+    void loadNotifications();
+
+    return () => {
+      socket.off("notification:new", handleNewNotification);
+      socket.off("chat:message", handleIncomingChat);
+      socket.off("order:updated", handleCustomerOrderRealtime);
+      socket.off("order:status-updated", handleCustomerOrderRealtime);
+      socket.off("order:cancelled", handleTaskerOrderCancelled);
+      socket.off("connect", handleReconnect);
+    };
+  }, [hasResolvedIdentity, loadNotifications, userId, userRole]);
+
+  useEffect(() => {
+    if (!hasResolvedIdentity || !userId) {
+      return;
     }
-  }, [userId, userRole, loadNotifications]);
+
+    const loadIfVisible = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
+
+      void loadNotifications();
+    };
+
+    loadIfVisible();
+
+    const intervalId = window.setInterval(() => {
+      loadIfVisible();
+    }, POLLING_INTERVAL_MS);
+
+    const handleVisibilityChange = () => {
+      loadIfVisible();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [hasResolvedIdentity, loadNotifications, userId]);
 
   return {
     notifications,
     unreadCount,
     isLoading,
+    hasIdentity,
     loadNotifications,
     markAsRead,
     markAllAsRead,

@@ -9,18 +9,47 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Bell, X, CheckCheck, Eye } from "lucide-react";
+import {
+  BadgeCheck,
+  Bell,
+  BellRing,
+  CheckCheck,
+  CircleDollarSign,
+  Eye,
+  MessageCircleMore,
+  PartyPopper,
+  ShieldX,
+  X,
+} from "lucide-react";
 
 const formatTimeAgo = (date: string) => {
   const now = new Date();
   const time = new Date(date);
   const diff = Math.floor((now.getTime() - time.getTime()) / 1000);
 
-  if (diff < 60) return "vừa xong";
+  if (diff < 60) return "Vừa xong";
   if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`;
   if (diff < 86400) return `${Math.floor(diff / 3600)} giờ trước`;
   if (diff < 604800) return `${Math.floor(diff / 86400)} ngày trước`;
   return time.toLocaleDateString("vi-VN");
+};
+
+const getNotificationIcon = (type?: string) => {
+  switch (String(type ?? "").toLowerCase()) {
+    case "order_accepted":
+      return BadgeCheck;
+    case "order_completed":
+      return PartyPopper;
+    case "order_cancelled":
+      return ShieldX;
+    case "payment_received":
+    case "refund":
+      return CircleDollarSign;
+    case "chat_message":
+      return MessageCircleMore;
+    default:
+      return BellRing;
+  }
 };
 
 export const NotificationCenter = () => {
@@ -29,11 +58,17 @@ export const NotificationCenter = () => {
   const {
     notifications,
     unreadCount,
+    hasIdentity,
+    isLoading,
     markAsRead,
     markAllAsRead,
     deleteNotification,
   } = useNotifications();
   const [isOpen, setIsOpen] = useState(false);
+
+  if (!hasIdentity && !isLoading) {
+    return null;
+  }
 
   const handleNotificationClick = (notification: {
     _id: string;
@@ -46,47 +81,27 @@ export const NotificationCenter = () => {
     }
 
     const orderId = String(notification.orderId ?? "");
-    if (!orderId) return;
+    if (!orderId) {
+      setIsOpen(false);
+      return;
+    }
 
     const isTaskerPath = pathname.startsWith("/tasker");
-    const isChat = String(notification.type ?? "").toLowerCase() === "chat_message";
+    const isChat =
+      String(notification.type ?? "").toLowerCase() === "chat_message";
 
     setIsOpen(false);
 
     if (isTaskerPath) {
-      if (isChat) {
-        router.push(`/tasker/dashboard?chat=true&orderId=${orderId}`);
-        return;
-      }
-      router.push("/tasker/dashboard");
+      router.push(
+        isChat
+          ? `/tasker/dashboard?chat=true&orderId=${orderId}`
+          : "/tasker/dashboard",
+      );
       return;
     }
 
-    if (isChat) {
-      router.push(`/orders/${orderId}?chat=true`);
-      return;
-    }
-
-    router.push(`/orders/${orderId}`);
-  };
-
-  const getNotificationIcon = (type?: string) => {
-    switch (type) {
-      case "order_accepted":
-        return "✅";
-      case "order_completed":
-        return "🎉";
-      case "order_cancelled":
-        return "❌";
-      case "payment_received":
-        return "💰";
-      case "chat_message":
-        return "💬";
-      case "refund":
-        return "💸";
-      default:
-        return "🔔";
-    }
+    router.push(isChat ? `/orders/${orderId}?chat=true` : `/orders/${orderId}`);
   };
 
   return (
@@ -100,7 +115,7 @@ export const NotificationCenter = () => {
         >
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
-            <span className="absolute top-0 right-0 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
+            <span className="absolute right-0 top-0 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}
@@ -109,7 +124,7 @@ export const NotificationCenter = () => {
 
       <DropdownMenuContent align="end" className="max-h-96 w-96 overflow-y-auto">
         <div className="border-b p-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">Thông báo</h2>
             {unreadCount > 0 && (
               <Button
@@ -136,10 +151,11 @@ export const NotificationCenter = () => {
               const isCancelled = notification.type === "order_cancelled";
               const unreadClass = !notification.isRead
                 ? isCancelled
-                  ? "bg-red-50"
-                  : "bg-blue-50"
+                  ? "bg-red-50 dark:bg-red-500/10"
+                  : "bg-blue-50 dark:bg-blue-500/10"
                 : "";
               const dotClass = isCancelled ? "bg-red-500" : "bg-blue-500";
+              const Icon = getNotificationIcon(notification.type);
 
               return (
                 <div
@@ -150,8 +166,8 @@ export const NotificationCenter = () => {
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="mb-1 flex items-center gap-2">
-                        <span className="text-lg">
-                          {getNotificationIcon(notification.type)}
+                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                          <Icon className="h-4 w-4" />
                         </span>
                         <h3 className="line-clamp-2 text-sm font-medium">
                           {notification.title}

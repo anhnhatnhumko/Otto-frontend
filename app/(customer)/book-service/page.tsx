@@ -96,17 +96,23 @@ const BookService = () => {
   const [selectedMethod, setSelectedMethod] = useState("");
 
   const selectedTime = startTime && endTime ? `${startTime} - ${endTime}` : "";
+  const parseTimeToHourValue = (time: string) => {
+    if (!time) return NaN;
+    const hour = Number.parseInt(time.split(":")[0] ?? "", 10);
+    if (Number.isNaN(hour)) return NaN;
+    return hour === 0 ? 24 : hour;
+  };
 
   const getEndTimeOptions = () => {
     if (!startTime) return [];
-    const startHour = parseInt(startTime.split(":")[0]);
+    const startHour = parseTimeToHourValue(startTime);
     const minEnd = startHour + 2; // ít nhất 2 tiếng
-    return availableHours.filter((h) => parseInt(h.split(":")[0]) >= minEnd);
+    return availableHours.filter((h) => parseTimeToHourValue(h) >= minEnd);
   };
 
   const totalHours =
     startTime && endTime
-      ? parseInt(endTime.split(":")[0]) - parseInt(startTime.split(":")[0])
+      ? parseTimeToHourValue(endTime) - parseTimeToHourValue(startTime)
       : 0;
 
   const selectedScheduleDateTime =
@@ -171,9 +177,10 @@ const BookService = () => {
     setStep(2);
   };
 
-  const availableHours = Array.from({ length: 18 }, (_, i) => {
+  const availableHours = Array.from({ length: 19 }, (_, i) => {
     const hour = 6 + i; // 6:00 - 23:00 (tối đến 12h đêm)
-    return `${hour.toString().padStart(2, "0")}:00`;
+    const displayHour = hour === 24 ? 0 : hour;
+    return `${displayHour.toString().padStart(2, "0")}:00`;
   });
 
   const handleNext = () => {

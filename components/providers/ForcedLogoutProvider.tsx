@@ -1,6 +1,13 @@
 "use client";
 
-import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useUserStore } from "@/app/store/useUserStore";
 import { connectSocket, disconnectSocket } from "@/lib/socket";
@@ -13,6 +20,7 @@ type AuthUser = {
   email?: string;
   role?: string;
   avatar?: string;
+  status?: string;
 };
 
 type StoreUser = {
@@ -50,6 +58,22 @@ function normalizeStoreUser(user: AuthUser): StoreUser | null {
 const DEFAULT_FORCED_LOGOUT_MESSAGE =
   "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên để được hỗ trợ.";
 
+const isBlockedStatus = (value?: string) =>
+  String(value ?? "").trim().toUpperCase() === "BLOCKED";
+
+const isSameStoreUser = (left: StoreUser | null, right: StoreUser | null) => {
+  if (!left && !right) return true;
+  if (!left || !right) return false;
+
+  return (
+    left._id === right._id &&
+    left.fullName === right.fullName &&
+    left.email === right.email &&
+    left.role === right.role &&
+    left.avatar === right.avatar
+  );
+};
+
 export default function ForcedLogoutProvider({
   children,
 }: {
@@ -62,6 +86,8 @@ export default function ForcedLogoutProvider({
   const [resolvedUser, setResolvedUser] = useState<AuthUser | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const isHandlingForceLogoutRef = useRef(false);
+  const isVerifyingSessionRef = useRef(false);
+
   const storeUserId = String(user?._id ?? user?.id ?? "").trim();
   const resolvedUserId = String(resolvedUser?._id ?? resolvedUser?.id ?? "").trim();
 
@@ -84,69 +110,8 @@ export default function ForcedLogoutProvider({
     }
   }, [storeUserId]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const hydrateUser = async () => {
-      if (storeUserId || resolvedUserId) {
-        setHydrated(true);
-        return;
-      }
-
-      try {
-        const res = await fetch("/api/auth/me", {
-          credentials: "include",
-          cache: "no-store",
-        });
-
-        if (!res.ok) {
-          if (!cancelled) {
-            setResolvedUser(null);
-          }
-          return;
-        }
-
-        const data = (await res.json()) as AuthUser;
-
-        if (cancelled) {
-          return;
-        }
-
-        setResolvedUser(data);
-        const normalizedUser = normalizeStoreUser(data);
-        if (normalizedUser) {
-          setUser((prev) => prev ?? normalizedUser);
-        }
-      } catch {
-        if (!cancelled) {
-          setResolvedUser(null);
-        }
-      } finally {
-        if (!cancelled) {
-          setHydrated(true);
-        }
-      }
-    };
-
-    void hydrateUser();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [resolvedUserId, setUser, storeUserId]);
-
-  useEffect(() => {
-    if (!hydrated || !userId || !role) {
-      return;
-    }
-
-    const socket = connectSocket(userId, role);
-
-    if (!socket) {
-      return;
-    }
-
-    const handleForceLogout = async (payload: ForceLogoutPayload) => {
+  const performForceLogout = useCallback(
+    async (payload?: ForceLogoutPayload | string) => {
       if (isHandlingForceLogoutRef.current) {
         return;
       }
@@ -179,7 +144,7 @@ export default function ForcedLogoutProvider({
           },
         });
       } catch {
-        // ignore logout failures here because the cookie may already be invalid
+        // ignore logout failures because token may already be invalid
       }
 
       setResolvedUser(null);
@@ -189,6 +154,81 @@ export default function ForcedLogoutProvider({
       if (pathname !== target) {
         router.replace(target);
       }
+    },
+    [pathname, router, setUser],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const hydrateUser = async () => {
+      if (storeUserId || resolvedUserId) {
+        setHydrated(true);
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/auth/me", {
+          credentials: "include",
+          cache: "no-store",
+        });
+
+        if (!res.ok) {
+          if (!cancelled) {
+            setResolvedUser(null);
+          }
+          return;
+        }
+
+        const data = (await res.json()) as AuthUser;
+
+        if (cancelled) {
+          return;
+        }
+
+        if (isBlockedStatus(data.status)) {
+          await performForceLogout(DEFAULT_FORCED_LOGOUT_MESSAGE);
+          return;
+        }
+
+        setResolvedUser(data);
+
+        const normalizedUser = normalizeStoreUser(data);
+        if (normalizedUser) {
+          setUser((prev) =>
+            isSameStoreUser(prev, normalizedUser) ? prev : normalizedUser,
+          );
+        }
+      } catch {
+        if (!cancelled) {
+          setResolvedUser(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setHydrated(true);
+        }
+      }
+    };
+
+    void hydrateUser();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [performForceLogout, resolvedUserId, setUser, storeUserId]);
+
+  useEffect(() => {
+    if (!hydrated || !userId || !role) {
+      return;
+    }
+
+    const socket = connectSocket(userId, role);
+    if (!socket) {
+      return;
+    }
+
+    const handleForceLogout = async (payload: ForceLogoutPayload) => {
+      await performForceLogout(payload);
     };
 
     socket.on("auth:force-logout", handleForceLogout);
@@ -196,7 +236,78 @@ export default function ForcedLogoutProvider({
     return () => {
       socket.off("auth:force-logout", handleForceLogout);
     };
-  }, [hydrated, pathname, role, router, setUser, userId]);
+  }, [hydrated, performForceLogout, role, userId]);
+
+  useEffect(() => {
+    if (!hydrated || !userId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const verifySession = async () => {
+      if (cancelled || isVerifyingSessionRef.current) {
+        return;
+      }
+
+      isVerifyingSessionRef.current = true;
+
+      try {
+        const res = await fetch("/api/auth/me", {
+          credentials: "include",
+          cache: "no-store",
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        if (res.status === 401 || res.status === 403) {
+          await performForceLogout(DEFAULT_FORCED_LOGOUT_MESSAGE);
+          return;
+        }
+
+        if (!res.ok) {
+          return;
+        }
+
+        const data = (await res.json()) as AuthUser;
+
+        if (cancelled) {
+          return;
+        }
+
+        if (isBlockedStatus(data.status)) {
+          await performForceLogout(DEFAULT_FORCED_LOGOUT_MESSAGE);
+          return;
+        }
+
+        setResolvedUser(data);
+
+        const normalizedUser = normalizeStoreUser(data);
+        if (normalizedUser) {
+          setUser((prev) =>
+            isSameStoreUser(prev, normalizedUser) ? prev : normalizedUser,
+          );
+        }
+      } catch {
+        // ignore transient network errors
+      } finally {
+        isVerifyingSessionRef.current = false;
+      }
+    };
+
+    void verifySession();
+
+    const intervalId = window.setInterval(() => {
+      void verifySession();
+    }, 1000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [hydrated, performForceLogout, setUser, userId]);
 
   return <>{children}</>;
 }
