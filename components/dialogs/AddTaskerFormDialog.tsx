@@ -75,6 +75,22 @@ type ApiErrorPayload = {
   fieldErrors?: TaskerFormErrors;
 };
 
+type TaskerCreateResponse = {
+  tasker?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    tempPassword?: string;
+    credentialsEmailSent?: boolean;
+    emailSent?: boolean;
+  };
+  credentialsEmailSent?: boolean;
+  emailSent?: boolean;
+  credentialsEmailMessage?: string;
+  emailMessage?: string;
+  message?: string;
+};
+
 const INITIAL_FORM_STATE: TaskerFormData = {
   name: "",
   email: "",
@@ -141,6 +157,27 @@ const getToastTitle = (fieldErrors: TaskerFormErrors) => {
   return "Lỗi";
 };
 
+const resolveCredentialsEmailResult = (payload: TaskerCreateResponse) => {
+  const sent =
+    typeof payload.credentialsEmailSent === "boolean"
+      ? payload.credentialsEmailSent
+      : typeof payload.emailSent === "boolean"
+        ? payload.emailSent
+        : typeof payload.tasker?.credentialsEmailSent === "boolean"
+          ? payload.tasker.credentialsEmailSent
+          : typeof payload.tasker?.emailSent === "boolean"
+            ? payload.tasker.emailSent
+            : null;
+
+  const message =
+    payload.credentialsEmailMessage?.trim() ||
+    payload.emailMessage?.trim() ||
+    payload.message?.trim() ||
+    "";
+
+  return { sent, message };
+};
+
 export function AddTaskerFormDialog({
   open,
   onOpenChange,
@@ -166,6 +203,8 @@ export function AddTaskerFormDialog({
   const [loadingWards, setLoadingWards] = useState(false);
   const [createdCredentials, setCreatedCredentials] =
     useState<CreatedTaskerCredentials | null>(null);
+  const [credentialsEmailSent, setCredentialsEmailSent] = useState<boolean | null>(null);
+  const [credentialsEmailMessage, setCredentialsEmailMessage] = useState("");
 
   useEffect(() => {
     const fetchProvinces = async () => {
@@ -223,6 +262,8 @@ export function AddTaskerFormDialog({
     });
     setErrors({});
     setAvatarFile(null);
+    setCredentialsEmailSent(null);
+    setCredentialsEmailMessage("");
     setAvatarPreview((prev) => {
       if (prev) {
         URL.revokeObjectURL(prev);
@@ -259,7 +300,7 @@ export function AddTaskerFormDialog({
     }
 
     if (!form.wardId) {
-      nextErrors.wardId = "Vui lòng chọn quận/huyện";
+      nextErrors.wardId = "Vui lòng chọn phường/xã";
     }
 
     setErrors(nextErrors);
@@ -282,6 +323,7 @@ export function AddTaskerFormDialog({
         formData.append("phone", form.phone.trim());
         formData.append("provinceId", form.provinceId);
         formData.append("wardId", form.wardId);
+        formData.append("sendCredentialsEmail", "true");
         form.services.forEach((s) => formData.append("services[]", s));
         formData.append("avatar", avatarFile);
 
@@ -303,6 +345,7 @@ export function AddTaskerFormDialog({
             phone: form.phone.trim(),
             provinceId: form.provinceId,
             wardId: form.wardId,
+            sendCredentialsEmail: true,
             services: form.services,
           }),
         });
@@ -316,14 +359,7 @@ export function AddTaskerFormDialog({
         );
       }
 
-      const payload = (await response.json()) as {
-        tasker?: {
-          name?: string;
-          email?: string;
-          phone?: string;
-          tempPassword?: string;
-        };
-      };
+      const payload = (await response.json()) as TaskerCreateResponse;
 
       const tempPassword = payload?.tasker?.tempPassword;
 
@@ -338,12 +374,23 @@ export function AddTaskerFormDialog({
         tempPassword,
       });
 
+      const emailResult = resolveCredentialsEmailResult(payload);
+      setCredentialsEmailSent(emailResult.sent);
+      setCredentialsEmailMessage(emailResult.message);
+
       await onTaskerAdded?.();
 
       toast({
         title: "Thành công",
-        description: `Tasker ${form.name} đã được thêm. Hãy sao chép mật khẩu tạm để gửi cho tasker.`,
+        description:
+          emailResult.sent === true
+            ? `Tasker ${form.name} đã được thêm và thông tin đăng nhập đã được gửi qua email.`
+            : emailResult.sent === false
+              ? `Tasker ${form.name} đã được thêm nhưng gửi email tự động chưa thành công. Bạn vẫn có thể sao chép mật khẩu tạm ở bước dưới.`
+              : `Tasker ${form.name} đã được thêm. Hãy kiểm tra hộp thư tasker hoặc sao chép mật khẩu tạm nếu cần.`,
       });
+
+      return;
     } catch (error) {
       console.error("Error adding tasker:", error);
 
@@ -385,6 +432,8 @@ export function AddTaskerFormDialog({
     setForm(INITIAL_FORM_STATE);
     setErrors({});
     setCreatedCredentials(null);
+    setCredentialsEmailSent(null);
+    setCredentialsEmailMessage("");
     setAvatarFile(null);
     setAvatarPreview(null);
     onOpenChange(false);
@@ -428,6 +477,20 @@ export function AddTaskerFormDialog({
               <p className="text-sm text-muted-foreground">
                 Tài khoản tasker đã được tạo thành công. Gửi thông tin đăng nhập này cho tasker:
               </p>
+              {credentialsEmailSent === true ? (
+                <p className="mt-2 text-xs text-emerald-600">
+                  Hệ thống đã gửi thông tin đăng nhập qua email cho tasker.
+                </p>
+              ) : credentialsEmailSent === false ? (
+                <p className="mt-2 text-xs text-amber-600">
+                  Hệ thống chưa gửi được email tự động. Bạn vẫn có thể dùng mật khẩu tạm bên dưới.
+                </p>
+              ) : null}
+              {credentialsEmailMessage ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {credentialsEmailMessage}
+                </p>
+              ) : null}
               <div className="mt-3 space-y-2 text-sm">
                 <p>
                   <span className="font-medium">Họ tên:</span> {createdCredentials.name}
@@ -587,7 +650,7 @@ export function AddTaskerFormDialog({
 
             <div className="space-y-2">
               <Label htmlFor="tasker-ward">
-                Quận/Huyện <span className="text-red-500">*</span>
+                Phường/Xã <span className="text-red-500">*</span>
               </Label>
               <Select
                 value={form.wardId}
@@ -601,7 +664,7 @@ export function AddTaskerFormDialog({
               >
                 <SelectTrigger id="tasker-ward">
                   <SelectValue
-                    placeholder={loadingWards ? "Đang tải..." : "Chọn quận/huyện"}
+                    placeholder={loadingWards ? "Đang tải..." : "Chọn phường/xã"}
                   />
                 </SelectTrigger>
                 <SelectContent>

@@ -435,6 +435,16 @@ export function TaskersTab({
       .replace(/\s+/g, " ")
       .trim();
 
+  const normalizeLocationLookupValue = (value?: string | null) =>
+    normalizeLookupValue(value)
+      .replace(/[.,/\\-]/g, " ")
+      .replace(
+        /^(thanh pho|tp|tinh|quan|huyen|thi xa|tx|thi tran|tt|phuong|xa)\s+/,
+        "",
+      )
+      .replace(/\s+/g, " ")
+      .trim();
+
   const matchesLookupValue = (left?: string | null, right?: string | null) => {
     const normalizedLeft = normalizeLookupValue(left);
     const normalizedRight = normalizeLookupValue(right);
@@ -450,18 +460,29 @@ export function TaskersTab({
     );
   };
 
+  const matchesLocationValue = (left?: string | null, right?: string | null) => {
+    const normalizedLeft = normalizeLocationLookupValue(left);
+    const normalizedRight = normalizeLocationLookupValue(right);
+
+    if (!normalizedLeft || !normalizedRight) {
+      return false;
+    }
+
+    return normalizedLeft === normalizedRight;
+  };
+
   const buildTaskerPrefillData = async (
     request: any,
   ): Promise<{
     prefillData: AddTaskerPrefillData;
     unresolvedFields: string[];
   }> => {
-    const provinceName = request?.formData?.city;
-    const wardName = request?.formData?.district;
+    const provinceName = request?.formData?.province ?? request?.formData?.city;
+    const wardName = request?.formData?.ward ?? request?.formData?.district;
     const rawServices = Array.isArray(request?.services) ? request.services : [];
 
     const matchedProvince = provinces.find((province) =>
-      matchesLookupValue(province.name, provinceName),
+      matchesLocationValue(province.name, provinceName),
     );
 
     const matchedServiceIds = rawServices
@@ -491,7 +512,7 @@ export function TaskersTab({
         if (response.ok) {
           const wardOptions = (await response.json()) as Ward[];
           matchedWardId =
-            wardOptions.find((ward) => matchesLookupValue(ward.name, wardName))
+            wardOptions.find((ward) => matchesLocationValue(ward.name, wardName))
               ?._id ?? "";
         }
       } catch (error) {
@@ -506,7 +527,7 @@ export function TaskersTab({
     }
 
     if (wardName && matchedProvince?._id && !matchedWardId) {
-      unresolvedFields.push("quận/huyện");
+      unresolvedFields.push("phường/xã");
     }
 
     if (rawServices.length > 0 && matchedServiceIds.length !== rawServices.length) {
