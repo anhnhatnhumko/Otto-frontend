@@ -147,6 +147,12 @@ const canHydrateRealtimeOrder = (payload: OrderRealtimePayload) => {
     );
 };
 
+const hasRealtimeOrderDate = (payload: OrderRealtimePayload) => {
+    const candidate = pickOrderPayloadCandidate(payload);
+
+    return Boolean(candidate.createdAt || candidate.startTime);
+};
+
 const getUserLite = (value: unknown) => {
     const userObj = toRecord(value);
     if (!userObj) return null;
@@ -207,6 +213,7 @@ const buildOrderPatch = (payload: OrderRealtimePayload): Partial<Order> => {
 
     if (typeof candidate.createdAt === "string" && candidate.createdAt) {
         patch.date = candidate.createdAt;
+        patch.createdAt = candidate.createdAt;
 
         const date = new Date(candidate.createdAt);
         if (!Number.isNaN(date.getTime())) {
@@ -254,6 +261,9 @@ const buildOrderPatch = (payload: OrderRealtimePayload): Partial<Order> => {
     const hasStart = typeof candidate.startTime === "string" && candidate.startTime;
     const hasEnd = typeof candidate.endTime === "string" && candidate.endTime;
     if (hasStart || hasEnd) {
+        if (hasStart) {
+            patch.startTime = candidate.startTime;
+        }
         patch.workTime = formatWorkTime(
             hasStart ? candidate.startTime : undefined,
             hasEnd ? candidate.endTime : undefined,
@@ -531,6 +541,9 @@ export function useAdminData() {
             return;
         }
         setOrders((prev) => upsertById(prev, mapped));
+        if (!hasRealtimeOrderDate(incoming)) {
+            queueOrdersReload();
+        }
 
         // Refresh services counts (throttled) so table always reflects true values
         maybeReloadServices();
@@ -555,6 +568,9 @@ export function useAdminData() {
             const index = prev.findIndex((item) => item.id === orderId);
             if (index === -1) {
                 if (normalizedOrder) {
+                    if (!hasRealtimeOrderDate(payload)) {
+                        shouldReload = true;
+                    }
                     return upsertById(prev, normalizedOrder);
                 }
                 shouldReload = true;

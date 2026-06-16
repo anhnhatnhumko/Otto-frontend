@@ -144,6 +144,8 @@ export const mapOrder = (order: ApiOrder): Order => {
         status: mapOrderStatus(order.status),
         amount: order.totalPrice ?? order.amount ?? 0,
         note: order.note,
+        createdAt: order.createdAt,
+        startTime: order.startTime,
         workerName: tasker ?? "Không có ",
     };
 };
