@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -83,6 +83,51 @@ export default function Admin() {
   const [provinceId, setProvinceId] = useState("all");
   const [wardId, setWardId] = useState("all");
   const [loadingAction, setLoadingAction] = useState(false);
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, string>>(
+    {},
+  );
+
+  const displayUsers = useMemo(
+    () =>
+      users.map((item) => ({
+        ...item,
+        status: (statusOverrides[`user:${item.id}`] as User["status"]) ?? item.status,
+      })),
+    [statusOverrides, users],
+  );
+
+  const displayTaskers = useMemo(
+    () =>
+      taskers.map((item) => ({
+        ...item,
+        status:
+          (statusOverrides[`tasker:${item.id}`] as Tasker["status"]) ?? item.status,
+      })),
+    [statusOverrides, taskers],
+  );
+
+  const runRapidSync = (reload: () => void | Promise<void>) => {
+    if (typeof window === "undefined") {
+      void reload();
+      return;
+    }
+
+    let attempt = 0;
+    const maxAttempts = 10;
+
+    const tick = () => {
+      attempt += 1;
+      void reload();
+
+      if (attempt >= maxAttempts) {
+        return;
+      }
+
+      window.setTimeout(tick, 500);
+    };
+
+    window.setTimeout(tick, 500);
+  };
 
   const applyOptimisticAction = (action: string, id: string) => {
     switch (action) {
@@ -108,6 +153,7 @@ export default function Admin() {
         );
         break;
       case "ban_user":
+        setStatusOverrides((prev) => ({ ...prev, [`user:${id}`]: "banned" }));
         setUsers((prev) =>
           prev.map((item) =>
             item.id === id ? { ...item, status: "banned" } : item,
@@ -118,6 +164,7 @@ export default function Admin() {
         );
         break;
       case "activate_user":
+        setStatusOverrides((prev) => ({ ...prev, [`user:${id}`]: "active" }));
         setUsers((prev) =>
           prev.map((item) =>
             item.id === id ? { ...item, status: "active" } : item,
@@ -129,6 +176,7 @@ export default function Admin() {
         break;
       case "approve_tasker":
       case "activate_tasker":
+        setStatusOverrides((prev) => ({ ...prev, [`tasker:${id}`]: "active" }));
         setTaskers((prev) =>
           prev.map((item) =>
             item.id === id ? { ...item, status: "active" } : item,
@@ -139,6 +187,7 @@ export default function Admin() {
         );
         break;
       case "ban_tasker":
+        setStatusOverrides((prev) => ({ ...prev, [`tasker:${id}`]: "banned" }));
         setTaskers((prev) =>
           prev.map((item) =>
             item.id === id ? { ...item, status: "banned" } : item,
@@ -149,6 +198,11 @@ export default function Admin() {
         );
         break;
       case "reject_tasker":
+        setStatusOverrides((prev) => {
+          const next = { ...prev };
+          delete next[`tasker:${id}`];
+          return next;
+        });
         setTaskers((prev) => prev.filter((item) => item.id !== id));
         setSelectedTasker((prev) => (prev?.id === id ? null : prev));
         break;
@@ -255,17 +309,17 @@ export default function Admin() {
         case "confirm_order":
         case "cancel_order":
         case "complete_order":
-          void reloadOrders();
+          runRapidSync(reloadOrders);
           break;
         case "ban_user":
         case "activate_user":
-          void reloadUsers();
+          runRapidSync(reloadUsers);
           break;
         case "approve_tasker":
         case "reject_tasker":
         case "ban_tasker":
         case "activate_tasker":
-          void reloadTaskers();
+          runRapidSync(reloadTaskers);
           break;
         default:
           break;
@@ -484,9 +538,9 @@ export default function Admin() {
           <TabsContent value="dashboard">
             <DashboardTab
               orders={orders}
-              users={users}
+              users={displayUsers}
               services={services}
-              taskers={taskers}
+              taskers={displayTaskers}
             />
           </TabsContent>
 
@@ -503,7 +557,7 @@ export default function Admin() {
 
           <TabsContent value="users">
             <UsersTab
-              users={users}
+              users={displayUsers}
               onViewDetail={(user) => {
                 setSelectedUser(user);
                 setIsUserDetailOpen(true);
@@ -514,7 +568,7 @@ export default function Admin() {
 
           <TabsContent value="taskers">
             <TaskersTab
-              taskers={taskers}
+              taskers={displayTaskers}
               services={services}
               provinceId={provinceId}
               setProvinceId={setProvinceId}

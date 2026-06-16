@@ -528,6 +528,7 @@ function OrderTrackingPageContent() {
       try {
         const mid = String(msg._id ?? msg.id ?? `s-${Date.now()}`);
         const fromMe = String(msg.senderId ?? '') === userId;
+        if (fromMe) return;
         const time = new Date(msg.createdAt ?? Date.now()).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
         const chatMsg = { id: mid, fromMe, text: msg.text, time, read: true };
         if (chatOpen) {
@@ -645,7 +646,7 @@ function OrderTrackingPageContent() {
     void refreshChatMessages();
     const interval = window.setInterval(() => {
       void refreshChatMessages();
-    }, 20000);
+    }, 500);
 
     return () => {
       active = false;
@@ -655,9 +656,10 @@ function OrderTrackingPageContent() {
 
   const handleSendChat = async (text: string) => {
     try {
-      await sendOrderMessage(String(orderId), text);
+      return await sendOrderMessage(String(orderId), text);
     } catch (err) {
       console.error('Failed to send chat', err);
+      return undefined;
     }
   };
 

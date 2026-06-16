@@ -144,23 +144,34 @@ const ChatDialog = ({
       onSend(trimmed)
         .then((response: Partial<ChatMessage> | void) => {
           setIsTyping(false);
+          setMessages((prev) => {
+            const lastIndex = [...prev]
+              .reverse()
+              .findIndex(
+                (message) =>
+                  message.fromMe &&
+                  message.text === trimmed &&
+                  message.read === false,
+              );
 
-          if (!response || !(response as Partial<ChatMessage>).text) {
-            return;
-          }
+            if (lastIndex === -1) {
+              return prev.map((message) =>
+                message.fromMe ? { ...message, read: true } : message,
+              );
+            }
 
-          setMessages((prev) => [
-            ...prev.map((message) =>
-              message.fromMe ? { ...message, read: true } : message,
-            ),
-            {
-              id: String((response as { _id?: string })._id ?? `s-${Date.now()}`),
-              fromMe: false,
-              text: String((response as { text?: string }).text ?? autoReply),
-              time: getTime(0),
+            const actualIndex = prev.length - 1 - lastIndex;
+            const next = [...prev];
+            next[actualIndex] = {
+              ...next[actualIndex],
+              id: String(
+                (response as { _id?: string } | undefined)?._id ??
+                  next[actualIndex].id,
+              ),
               read: true,
-            },
-          ]);
+            };
+            return next;
+          });
         })
         .catch(() => setIsTyping(false));
       return;

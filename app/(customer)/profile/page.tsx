@@ -77,6 +77,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import WalletCard from "@/components/wallet/WalletCard";
 import OrderStateRenderer from "@/components/orders/OrderStateRenderer";
 import { useUserStore } from "@/app/store/useUserStore";
+import useUnreadMessagesStore from "@/hooks/useUnreadMessages";
 import { handleAuthMeResponse } from "@/lib/auth-client";
 import {
   fetchProfileStats,
@@ -181,6 +182,7 @@ const CustomerDashboard = () => {
   const orderPageSize = 10;
 
   const isMobile = useIsMobile();
+  const unreadCounts = useUnreadMessagesStore((state) => state.unreadCounts);
 
   useEffect(() => {
     const tab = searchParams.get("tab");
@@ -848,9 +850,21 @@ const CustomerDashboard = () => {
                         {formatCurrency(booking.price)}
                       </p>
                       <div className="flex gap-2">
-                        <Button variant="outline" size="sm">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="relative"
+                          onClick={() => router.push(`/orders/${booking._id}?chat=true`)}
+                        >
                           <MessageSquare size={14} className="mr-1" />
                           Nhắn tin
+                          {Number(unreadCounts[booking._id] || 0) > 0 && (
+                            <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                              {unreadCounts[booking._id] > 9
+                                ? "9+"
+                                : unreadCounts[booking._id]}
+                            </span>
+                          )}
                         </Button>
                         {canCancelOrder(booking) && (
                           <Button

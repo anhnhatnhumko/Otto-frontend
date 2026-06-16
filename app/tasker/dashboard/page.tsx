@@ -591,7 +591,7 @@ const TaskerDashboardContent = () => {
   const handleSendChat = async (text: string) => {
     if (!chatOrderId) return;
 
-    await sendOrderMessage(chatOrderId, text);
+    return await sendOrderMessage(chatOrderId, text);
   };
 
   useEffect(() => {
@@ -649,7 +649,7 @@ const TaskerDashboardContent = () => {
     void refreshChatMessages();
     const interval = window.setInterval(() => {
       void refreshChatMessages();
-    }, 20000);
+    }, 500);
 
     return () => {
       active = false;
@@ -744,6 +744,9 @@ const TaskerDashboardContent = () => {
       const incomingOrderId = String(message?.orderId ?? "");
       const senderId = String(message?.senderId ?? "");
       const isFromMe = senderId === String(userId);
+      if (isFromMe) {
+        return;
+      }
 
       // If chat is open and it's the right order, add to messages
       if (incomingOrderId === chatOrderId && chatOpen) {
