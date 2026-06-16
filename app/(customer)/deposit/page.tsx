@@ -80,16 +80,42 @@ const Deposit = () => {
   };
 
   useEffect(() => {
+    let mounted = true;
+
     const fetchWallet = async () => {
       const res = await fetch(`/api/wallet`, {
         credentials: "include",
+        cache: "no-store",
       });
 
+      if (!res.ok) {
+        return;
+      }
+
       const data = await res.json();
-      setBalance(data.balance || 0);
+
+      if (mounted) {
+        setBalance(data.balance || 0);
+      }
     };
 
-    fetchWallet();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void fetchWallet();
+      }
+    };
+
+    void fetchWallet();
+    window.addEventListener("otto-wallet-updated", fetchWallet);
+    window.addEventListener("focus", fetchWallet);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener("otto-wallet-updated", fetchWallet);
+      window.removeEventListener("focus", fetchWallet);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, []);
 
   return (

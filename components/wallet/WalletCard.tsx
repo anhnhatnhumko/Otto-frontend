@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import {
-  Wallet,
-  Plus,
-  ArrowUpRight,
   ArrowDownLeft,
+  ArrowUpRight,
   History,
-  X,
+  Plus,
+  Wallet,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -16,7 +17,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { useRouter } from "next/navigation";
 
 export interface WalletTransaction {
   _id: string;
@@ -27,68 +27,150 @@ export interface WalletTransaction {
   createdAt: string;
 }
 
-const topupAmounts = [100000, 200000, 500000, 1000000, 2000000, 5000000];
-
 interface WalletCardProps {
   compact?: boolean;
 }
-const formatDate = (date: string) => {
-  return new Date(date).toLocaleDateString("vi-VN");
+
+const topupAmounts = [100000, 200000, 500000, 1000000, 2000000, 5000000];
+
+const formatDate = (date: string) =>
+  new Date(date).toLocaleDateString("vi-VN");
+
+const formatCurrency = (amount: number) =>
+  `${new Intl.NumberFormat("vi-VN").format(Math.abs(amount))}đ`;
+
+const TransactionRow = ({
+  transaction,
+}: {
+  transaction: WalletTransaction;
+}) => {
+  const isPositive = transaction.isPositive;
+
+  return (
+    <div className="flex items-center justify-between py-2">
+      <div className="flex items-center gap-3">
+        <div
+          className={`w-10 h-10 rounded-full flex items-center justify-center ${
+            isPositive ? "bg-green-100" : "bg-red-100"
+          }`}
+        >
+          {isPositive ? (
+            <ArrowDownLeft className="text-green-600 w-5 h-5" />
+          ) : (
+            <ArrowUpRight className="text-red-600 w-5 h-5" />
+          )}
+        </div>
+
+        <div>
+          <p className="text-sm font-semibold">{transaction.displayName}</p>
+          <p className="text-xs text-muted-foreground">
+            {formatDate(transaction.createdAt)}
+          </p>
+        </div>
+      </div>
+
+      <p
+        className={`text-sm font-semibold ${
+          isPositive ? "text-green-600" : "text-red-600"
+        }`}
+      >
+        {isPositive ? "+" : "-"}
+        {formatCurrency(transaction.amount)}
+      </p>
+    </div>
+  );
 };
+
+const TopupDialog = ({
+  open,
+  onClose,
+  selectedAmount,
+  onSelectAmount,
+  onConfirm,
+}: {
+  open: boolean;
+  onClose: () => void;
+  selectedAmount: number | null;
+  onSelectAmount: (amount: number) => void;
+  onConfirm: () => void;
+}) => (
+  <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
+    <DialogContent className="max-w-sm">
+      <DialogHeader>
+        <DialogTitle>Nạp tiền vào ví</DialogTitle>
+      </DialogHeader>
+
+      <div className="grid grid-cols-2 gap-3 mt-2">
+        {topupAmounts.map((amount) => (
+          <button
+            key={amount}
+            onClick={() => onSelectAmount(amount)}
+            className={`p-3 rounded-xl border text-center font-medium transition-all ${
+              selectedAmount === amount
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border hover:border-primary/50 text-foreground"
+            }`}
+          >
+            {formatCurrency(amount)}
+          </button>
+        ))}
+      </div>
+
+      <Button
+        variant="hero"
+        className="w-full mt-4"
+        disabled={!selectedAmount}
+        onClick={onConfirm}
+      >
+        {selectedAmount
+          ? `Nạp ${formatCurrency(selectedAmount)}`
+          : "Chọn số tiền"}
+      </Button>
+    </DialogContent>
+  </Dialog>
+);
+
+const HistoryDialog = ({
+  open,
+  onClose,
+  transactions,
+}: {
+  open: boolean;
+  onClose: () => void;
+  transactions: WalletTransaction[];
+}) => (
+  <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
+    <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+      <DialogHeader>
+        <DialogTitle>Lịch sử giao dịch</DialogTitle>
+      </DialogHeader>
+
+      <div className="space-y-3 mt-2">
+        {transactions.map((tx) => (
+          <TransactionRow key={tx._id} transaction={tx} />
+        ))}
+      </div>
+    </DialogContent>
+  </Dialog>
+);
+
 const WalletCard = ({ compact = false }: WalletCardProps) => {
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
-  const { toast } = useToast();
-  const router = useRouter();
   const [balance, setBalance] = useState(0);
   const [showTopup, setShowTopup] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
-  const TransactionRow = ({ transaction, formatCurrency }: any) => {
-    const isPositive = transaction.isPositive;
 
-    return (
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div
-            className={`w-10 h-10 rounded-full flex items-center justify-center ${
-              isPositive ? "bg-green-100" : "bg-red-100"
-            }`}
-          >
-            {isPositive ? (
-              <ArrowDownLeft className="text-green-600 w-5 h-5" />
-            ) : (
-              <ArrowUpRight className="text-red-600 w-5 h-5" />
-            )}
-          </div>
+  const { toast } = useToast();
+  const router = useRouter();
 
-          <div>
-            <p className="text-sm font-semibold">{transaction.displayName}</p>
-
-            <p className="text-xs text-muted-foreground">
-              {formatDate(transaction.createdAt)}
-            </p>
-          </div>
-        </div>
-
-        <p
-          className={`text-sm font-semibold ${
-            isPositive ? "text-green-600" : "text-red-600"
-          }`}
-        >
-          {isPositive ? "+" : "-"}
-          {formatCurrency(Math.abs(transaction.amount))}
-        </p>
-      </div>
-    );
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("vi-VN").format(Math.abs(amount)) + "đ";
-  };
   useEffect(() => {
+    let mounted = true;
+
     const fetchWallet = async () => {
-      const res = await fetch(`/api/wallet`, {
+      const res = await fetch("/api/wallet", {
         credentials: "include",
+        cache: "no-store",
       });
 
       if (!res.ok) {
@@ -97,20 +179,16 @@ const WalletCard = ({ compact = false }: WalletCardProps) => {
 
       const data = await res.json();
 
-      setBalance(data.balance || 0);
+      if (mounted) {
+        setBalance(data.balance || 0);
+      }
     };
 
-    fetchWallet();
-  }, []);
-
-  useEffect(() => {
     const fetchTransactions = async () => {
-      const res = await fetch(
-        `/api/wallet/transactions`,
-        {
-          credentials: "include",
-        },
-      );
+      const res = await fetch("/api/wallet/transactions", {
+        credentials: "include",
+        cache: "no-store",
+      });
 
       if (!res.ok) {
         return;
@@ -118,14 +196,40 @@ const WalletCard = ({ compact = false }: WalletCardProps) => {
 
       const data = await res.json();
 
-      setTransactions(data);
+      if (mounted) {
+        setTransactions(Array.isArray(data) ? data : []);
+      }
     };
 
-    fetchTransactions();
+    const refreshWalletData = () => {
+      void fetchWallet();
+      void fetchTransactions();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refreshWalletData();
+      }
+    };
+
+    refreshWalletData();
+    window.addEventListener("otto-wallet-updated", refreshWalletData);
+    window.addEventListener("focus", refreshWalletData);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener("otto-wallet-updated", refreshWalletData);
+      window.removeEventListener("focus", refreshWalletData);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, []);
 
   const handleTopup = () => {
-    if (!selectedAmount) return;
+    if (!selectedAmount) {
+      return;
+    }
+
     toast({
       title: "Nạp tiền thành công!",
       description: `Đã nạp ${formatCurrency(selectedAmount)} vào ví Otto`,
@@ -150,6 +254,7 @@ const WalletCard = ({ compact = false }: WalletCardProps) => {
               <Plus size={16} />
             </button>
           </div>
+
           <p className="text-2xl font-bold">{formatCurrency(balance)}</p>
           <button
             onClick={() => setShowHistory(true)}
@@ -158,7 +263,6 @@ const WalletCard = ({ compact = false }: WalletCardProps) => {
             Xem lịch sử
           </button>
 
-          {/* Topup Dialog */}
           <TopupDialog
             open={showTopup}
             onClose={() => {
@@ -168,15 +272,12 @@ const WalletCard = ({ compact = false }: WalletCardProps) => {
             selectedAmount={selectedAmount}
             onSelectAmount={setSelectedAmount}
             onConfirm={handleTopup}
-            formatCurrency={formatCurrency}
           />
 
-          {/* History Dialog */}
           <HistoryDialog
             open={showHistory}
             onClose={() => setShowHistory(false)}
             transactions={transactions}
-            formatCurrency={formatCurrency}
           />
         </CardContent>
       </Card>
@@ -197,6 +298,7 @@ const WalletCard = ({ compact = false }: WalletCardProps) => {
             </div>
           </div>
         </div>
+
         <div className="flex gap-2">
           <Button
             variant="secondary"
@@ -219,23 +321,17 @@ const WalletCard = ({ compact = false }: WalletCardProps) => {
         </div>
       </div>
 
-      {/* Recent transactions */}
       <CardContent className="p-4">
         <p className="text-sm font-medium text-muted-foreground mb-3">
           Giao dịch gần đây
         </p>
         <div className="space-y-3">
           {transactions.slice(0, 3).map((tx) => (
-            <TransactionRow
-              key={tx._id}
-              transaction={tx}
-              formatCurrency={formatCurrency}
-            />
+            <TransactionRow key={tx._id} transaction={tx} />
           ))}
         </div>
       </CardContent>
 
-      {/* Topup Dialog */}
       <TopupDialog
         open={showTopup}
         onClose={() => {
@@ -245,144 +341,15 @@ const WalletCard = ({ compact = false }: WalletCardProps) => {
         selectedAmount={selectedAmount}
         onSelectAmount={setSelectedAmount}
         onConfirm={handleTopup}
-        formatCurrency={formatCurrency}
       />
 
-      {/* History Dialog */}
       <HistoryDialog
         open={showHistory}
         onClose={() => setShowHistory(false)}
         transactions={transactions}
-        formatCurrency={formatCurrency}
       />
     </Card>
   );
 };
-
-// Sub-components
-const TransactionRow = ({
-  transaction,
-  formatCurrency,
-}: {
-  transaction: any;
-  formatCurrency: (n: number) => string;
-}) => {
-  const isPositive = transaction.isPositive;
-
-  return (
-    <div className="flex items-center justify-between py-2">
-      {/* LEFT */}
-      <div className="flex items-center gap-3">
-        <div
-          className={`w-10 h-10 rounded-full flex items-center justify-center ${
-            isPositive ? "bg-green-100" : "bg-red-100"
-          }`}
-        >
-          {isPositive ? (
-            <ArrowDownLeft className="text-green-600 w-5 h-5" />
-          ) : (
-            <ArrowUpRight className="text-red-600 w-5 h-5" />
-          )}
-        </div>
-
-        <div>
-          <p className="text-sm font-semibold">{transaction.displayName}</p>
-
-          <p className="text-xs text-muted-foreground">
-            {formatDate(transaction.createdAt)}
-          </p>
-        </div>
-      </div>
-
-      {/* RIGHT */}
-      <p
-        className={`text-sm font-semibold ${
-          isPositive ? "text-green-600" : "text-red-600"
-        }`}
-      >
-        {isPositive ? "+" : "-"}
-        {formatCurrency(Math.abs(transaction.amount))}
-      </p>
-    </div>
-  );
-};
-
-const TopupDialog = ({
-  open,
-  onClose,
-  selectedAmount,
-  onSelectAmount,
-  onConfirm,
-  formatCurrency,
-}: {
-  open: boolean;
-  onClose: () => void;
-  selectedAmount: number | null;
-  onSelectAmount: (n: number) => void;
-  onConfirm: () => void;
-  formatCurrency: (n: number) => string;
-}) => (
-  <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-    <DialogContent className="max-w-sm">
-      <DialogHeader>
-        <DialogTitle>Nạp tiền vào ví</DialogTitle>
-      </DialogHeader>
-      <div className="grid grid-cols-2 gap-3 mt-2">
-        {topupAmounts.map((amount) => (
-          <button
-            key={amount}
-            onClick={() => onSelectAmount(amount)}
-            className={`p-3 rounded-xl border text-center font-medium transition-all ${
-              selectedAmount === amount
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-border hover:border-primary/50 text-foreground"
-            }`}
-          >
-            {formatCurrency(amount)}
-          </button>
-        ))}
-      </div>
-      <Button
-        variant="hero"
-        className="w-full mt-4"
-        disabled={!selectedAmount}
-        onClick={onConfirm}
-      >
-        {selectedAmount
-          ? `Nạp ${formatCurrency(selectedAmount)}`
-          : "Chọn số tiền"}
-      </Button>
-    </DialogContent>
-  </Dialog>
-);
-
-const HistoryDialog = ({
-  open,
-  onClose,
-  transactions,
-  formatCurrency,
-}: {
-  open: boolean;
-  onClose: () => void;
-  transactions: WalletTransaction[];
-  formatCurrency: (n: number) => string;
-}) => (
-  <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-    <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
-      <DialogHeader>
-        <DialogTitle>Lịch sử giao dịch</DialogTitle>
-      </DialogHeader>
-      <div className="space-y-3 mt-2">
-        {transactions.map((tx) => (
-          <TransactionRow
-            key={tx._id}
-            transaction={tx}
-            formatCurrency={formatCurrency}
-          />
-        ))}
-      </div>
-    </DialogContent>
-  </Dialog>
-);
 
 export default WalletCard;
