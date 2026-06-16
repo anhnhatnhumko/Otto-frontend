@@ -4,6 +4,7 @@ import { useUserStore } from '@/app/store/useUserStore';
 import {
   buildOptimisticChatNotification,
   buildOptimisticCustomerOrderNotification,
+  buildOptimisticTaskerOrderCancelledNotification,
   getRealtimeNotificationIdentity,
   upsertRealtimeNotification,
 } from '@/lib/realtime-notification';
@@ -249,6 +250,17 @@ export const useNotifications = () => {
         );
       };
 
+      const handleTaskerOrderCancelled = (payload: unknown) => {
+        if (userRole !== 'TASKER') return;
+
+        const optimistic = buildOptimisticTaskerOrderCancelledNotification(payload);
+        if (!optimistic) return;
+
+        setNotifications((prev) =>
+          upsertRealtimeNotification(prev, optimistic as Notification)
+        );
+      };
+
       const handleChatRealtime = (payload: unknown) => {
         const optimistic = buildOptimisticChatNotification(payload, userId, userRole);
         if (!optimistic) return;
@@ -264,6 +276,7 @@ export const useNotifications = () => {
 
       socket.on('notification:new', handleNewNotification);
       socket.on('chat:message', handleChatRealtime);
+      socket.on('order:cancelled', handleTaskerOrderCancelled);
       socket.on('order:updated', handleOrderRealtime);
       socket.on('order:status-updated', handleOrderRealtime);
       socket.on('connect', handleConnect);
@@ -272,6 +285,7 @@ export const useNotifications = () => {
       return () => {
         socket.off('notification:new', handleNewNotification);
         socket.off('chat:message', handleChatRealtime);
+        socket.off('order:cancelled', handleTaskerOrderCancelled);
         socket.off('order:updated', handleOrderRealtime);
         socket.off('order:status-updated', handleOrderRealtime);
         socket.off('connect', handleConnect);

@@ -6,6 +6,7 @@ import { useOverdueOrder } from "@/hooks/useOverdueOrder";
 import {
   buildOptimisticChatNotification,
   buildOptimisticCustomerOrderNotification,
+  buildOptimisticTaskerOrderCancelledNotification,
   getRealtimeNotificationIdentity,
 } from "@/lib/realtime-notification";
 import { connectSocket } from "@/lib/socket";
@@ -149,14 +150,31 @@ export default function GlobalNotificationPopup({ userId, role }: Props) {
       setQueue((prev) => [...prev, optimistic]);
     };
 
+    const handleTaskerOrderCancelled = (payload: unknown) => {
+      if (role !== "TASKER") return;
+
+      const optimistic = buildOptimisticTaskerOrderCancelledNotification(payload);
+      if (!optimistic) return;
+
+      const identity = getRealtimeNotificationIdentity(optimistic);
+      if (identity && shownIds.current.has(identity)) return;
+      if (identity) {
+        shownIds.current.add(identity);
+      }
+
+      setQueue((prev) => [...prev, optimistic]);
+    };
+
     socket.on("notification:new", handleNewNotification);
     socket.on("chat:message", handleChatRealtime);
+    socket.on("order:cancelled", handleTaskerOrderCancelled);
     socket.on("order:updated", handleOrderRealtime);
     socket.on("order:status-updated", handleOrderRealtime);
 
     return () => {
       socket.off("notification:new", handleNewNotification);
       socket.off("chat:message", handleChatRealtime);
+      socket.off("order:cancelled", handleTaskerOrderCancelled);
       socket.off("order:updated", handleOrderRealtime);
       socket.off("order:status-updated", handleOrderRealtime);
     };

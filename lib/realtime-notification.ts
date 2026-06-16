@@ -93,6 +93,30 @@ const extractTaskerName = (payload: unknown) => {
   ).trim();
 };
 
+const extractCustomerName = (payload: unknown) => {
+  const root = asRecord(payload);
+  const data = readNested(root, "data");
+  const customer = readNested(root, "customer");
+  const customerId = readNested(root, "customerId");
+  const dataCustomer = readNested(data, "customer");
+  const dataCustomerId = readNested(data, "customerId");
+
+  return String(
+    customer.name ||
+      customer.fullName ||
+      root.customerName ||
+      customerId.fullName ||
+      customerId.name ||
+      dataCustomer.name ||
+      dataCustomer.fullName ||
+      data.customerName ||
+      dataCustomerId.fullName ||
+      dataCustomerId.name ||
+      root.senderName ||
+      "",
+  ).trim();
+};
+
 const extractSenderId = (payload: unknown) => {
   const root = asRecord(payload);
   const data = readNested(root, "data");
@@ -251,6 +275,30 @@ export const buildOptimisticOrderAcceptedNotification = (
 export const buildOptimisticCustomerOrderNotification = (
   payload: unknown,
 ): NotificationLike | null => buildOptimisticOrderAcceptedNotification(payload);
+
+export const buildOptimisticTaskerOrderCancelledNotification = (
+  payload: unknown,
+): NotificationLike | null => {
+  const orderId = extractOrderId(payload);
+  if (!orderId) {
+    return null;
+  }
+
+  const customerName = extractCustomerName(payload) || "Khách hàng";
+  const now = extractTimestamp(payload);
+
+  return {
+    _id: `optimistic-tasker-order-cancelled:${orderId}`,
+    title: "Khách hàng đã hủy đơn",
+    content: `${customerName} đã hủy đơn hàng bạn đang theo dõi.`,
+    type: "order_cancelled",
+    orderId,
+    senderName: customerName,
+    isRead: false,
+    createdAt: now,
+    updatedAt: now,
+  };
+};
 
 export const buildOptimisticChatNotification = (
   payload: unknown,
