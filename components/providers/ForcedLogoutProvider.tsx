@@ -15,6 +15,14 @@ type AuthUser = {
   avatar?: string;
 };
 
+type StoreUser = {
+  _id: string;
+  fullName: string;
+  email: string;
+  role?: string;
+  avatar?: string;
+};
+
 type ForceLogoutPayload = {
   reason?: string;
   message?: string;
@@ -22,6 +30,22 @@ type ForceLogoutPayload = {
 
 export const FORCED_LOGOUT_MESSAGE_STORAGE_KEY =
   "otto-forced-logout-message";
+
+function normalizeStoreUser(user: AuthUser): StoreUser | null {
+  const userId = String(user._id ?? user.id ?? "").trim();
+
+  if (!userId) {
+    return null;
+  }
+
+  return {
+    _id: userId,
+    fullName: String(user.fullName ?? "").trim(),
+    email: String(user.email ?? "").trim(),
+    role: user.role,
+    avatar: user.avatar,
+  };
+}
 
 const DEFAULT_FORCED_LOGOUT_MESSAGE =
   "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên để được hỗ trợ.";
@@ -89,7 +113,10 @@ export default function ForcedLogoutProvider({
         }
 
         setResolvedUser(data);
-        setUser((prev) => prev ?? data);
+        const normalizedUser = normalizeStoreUser(data);
+        if (normalizedUser) {
+          setUser((prev) => prev ?? normalizedUser);
+        }
       } catch {
         if (!cancelled) {
           setResolvedUser(null);
