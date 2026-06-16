@@ -331,13 +331,13 @@ export default function Admin() {
         <div className="mb-8">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-3xl font-bold text-foreground">Quản trị viên</h1>
-            <Badge
+            {/* <Badge
               variant={isRealtimeConnected ? "secondary" : "outline"}
               className="gap-1.5"
             >
               <Activity className="h-3.5 w-3.5" />
               {isRealtimeConnected ? "Realtime: Online" : "Realtime: Offline"}
-            </Badge>
+            </Badge> */}
           </div>
           <p className="text-muted-foreground mt-2">
             Quản lý đơn hàng, người dùng, dịch vụ và xem thống kê
