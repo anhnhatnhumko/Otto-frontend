@@ -34,16 +34,13 @@ export default function LoginPage() {
     }
   }, []);
 
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleLogin(event: React.FormEvent) {
+    event.preventDefault();
     setError(null);
     setLoading(true);
 
     try {
       const res = await login({ email, password });
-
-      console.log("LOGIN OK:", res);
-
       const role = res.user?.role;
       const mustChangePassword = Boolean(res.user?.mustChangePassword);
 
@@ -72,30 +69,28 @@ export default function LoginPage() {
 
   return (
     <div>
-      {/* Back */}
-      <Link href="/" className="text-sm text-muted-foreground flex items-center mb-6">
+      <Link
+        href="/"
+        className="mb-6 flex items-center text-sm text-muted-foreground"
+      >
         ← Về trang chủ
       </Link>
 
-      {/* Logo */}
-      <div className="flex items-center gap-2 mb-8">
-        <div className="h-9 w-9 rounded-lg bg-gradient-hero text-white flex items-center justify-center font-bold">
+      <div className="mb-8 flex items-center gap-2">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-hero font-bold text-white">
           O
         </div>
         <span className="text-xl font-bold text-foreground">Otto</span>
       </div>
 
-      {/* Title */}
-      <h1 className="text-3xl font-bold text-foreground mb-2">
+      <h1 className="mb-2 text-3xl font-bold text-foreground">
         Chào mừng trở lại!
       </h1>
-      <p className="text-muted-foreground mb-8">
+      <p className="mb-8 text-muted-foreground">
         Đăng nhập để tiếp tục sử dụng dịch vụ
       </p>
 
-      {/* Form */}
       <form className="space-y-4" onSubmit={handleLogin}>
-        {/* EMAIL */}
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
           <div className="relative">
@@ -107,14 +102,13 @@ export default function LoginPage() {
               id="email"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(event) => setEmail(event.target.value)}
               placeholder="email@example.com"
               className="h-12 pl-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             />
           </div>
         </div>
 
-        {/* PASSWORD */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label htmlFor="password">Mật khẩu</Label>
@@ -126,7 +120,7 @@ export default function LoginPage() {
             </Link>
           </div>
 
-          <div className="relative group">
+          <div className="group relative">
             <Lock
               size={20}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary"
@@ -135,7 +129,7 @@ export default function LoginPage() {
               id="password"
               type={showPassword ? "text" : "password"}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(event) => setPassword(event.target.value)}
               placeholder="••••••••"
               className="h-12 pl-10 pr-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             />
@@ -149,10 +143,8 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* ERROR */}
         {error && <p className="text-sm text-red-500">{error}</p>}
 
-        {/* SUBMIT */}
         <button
           type="submit"
           disabled={loading}
@@ -162,27 +154,9 @@ export default function LoginPage() {
         </button>
       </form>
 
-      {/* Divider */}
-      <div className="my-6 flex items-center gap-4 text-sm text-muted-foreground">
-        <div className="h-px flex-1 bg-border" />
-        Hoặc
-        <div className="h-px flex-1 bg-border" />
-      </div>
-
-      {/* Social */}
-      <div className="grid grid-cols-2 gap-4">
-        <button className="rounded-xl border border-border py-3 font-medium">
-          Google
-        </button>
-        <button className="rounded-xl border border-border py-3 font-medium">
-          Facebook
-        </button>
-      </div>
-
-      {/* Switch */}
       <p className="mt-8 text-center text-sm text-muted-foreground">
         Chưa có tài khoản?{" "}
-        <Link href="/register" className="text-blue-600 font-medium">
+        <Link href="/register" className="font-medium text-blue-600">
           Đăng ký ngay
         </Link>
       </p>
