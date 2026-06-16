@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import useUnreadMessagesStore from "@/hooks/useUnreadMessages";
 import { Order } from "./types";
 
 interface InProgressViewProps {
@@ -38,6 +39,9 @@ const InProgressView = ({
 }: InProgressViewProps) => {
   const tasker = order.tasker;
   const [now, setNow] = useState(() => Date.now());
+  const unreadCount = useUnreadMessagesStore(
+    (state) => state.unreadCounts[order._id] || 0,
+  );
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 30000);
@@ -68,21 +72,18 @@ const InProgressView = ({
   }, [now, order.startTime, order.endTime, progress, estimatedMinutes]);
 
   return (
-    <Card className="border-green-200 overflow-hidden">
+    <Card className="overflow-hidden border-green-200">
       <div className="h-1.5 bg-green-500" />
-      
-      <CardContent className="p-6 space-y-5">
+
+      <CardContent className="space-y-5 p-6">
         <div className="text-center">
-          <Badge className="bg-green-100 text-green-700 border-green-200 mb-3">
+          <Badge className="mb-3 border-green-200 bg-green-100 text-green-700">
             <Loader2 size={12} className="mr-1 animate-spin" />
             Đang thực hiện
           </Badge>
-          <h3 className="text-lg font-bold text-foreground">
-            {order.service}
-          </h3>
+          <h3 className="text-lg font-bold text-foreground">{order.service}</h3>
         </div>
 
-        {/* Progress steps */}
         <div className="space-y-3">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Tiến độ</span>
@@ -93,20 +94,18 @@ const InProgressView = ({
           <Progress value={progressState.value} className="h-2" />
         </div>
 
-        {/* Time estimate */}
-        <div className="flex items-center justify-center gap-2 p-3 bg-green-50 dark:bg-green-500/10 rounded-xl">
+        <div className="flex items-center justify-center gap-2 rounded-xl bg-green-50 p-3 dark:bg-green-500/10">
           <Clock size={16} className="text-green-600" />
           <span className="text-sm font-medium text-green-700 dark:text-green-400">
             Còn {formatMinutesRemaining(progressState.remainingMinutes)}
           </span>
         </div>
 
-        {/* Tasker info compact */}
         {tasker && (
-          <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-xl">
+          <div className="flex items-center gap-3 rounded-xl bg-muted/50 p-3">
             <Avatar className="h-10 w-10 shrink-0">
               <AvatarImage src={tasker.avatar} alt={tasker.name} />
-              <AvatarFallback className="bg-gradient-to-br from-green-500 to-primary text-primary-foreground font-bold">
+              <AvatarFallback className="bg-gradient-to-br from-green-500 to-primary font-bold text-primary-foreground">
                 {tasker.name
                   .split(" ")
                   .filter(Boolean)
@@ -116,10 +115,12 @@ const InProgressView = ({
                   .toUpperCase() || tasker.name.charAt(0)}
               </AvatarFallback>
             </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-foreground text-sm truncate">{tasker.name}</p>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-foreground">
+                {tasker.name}
+              </p>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Star size={12} className="text-yellow-500 fill-yellow-500" />
+                <Star size={12} className="fill-yellow-500 text-yellow-500" />
                 <span>{tasker.rating}</span>
                 <span>•</span>
                 <span>{tasker.completedJobs} đơn</span>
@@ -127,7 +128,7 @@ const InProgressView = ({
             </div>
             <div className="flex gap-1.5">
               {onCall && (
-                <Button variant="outline" size="icon" className="w-9 h-9" onClick={onCall}>
+                <Button variant="outline" size="icon" className="h-9 w-9" onClick={onCall}>
                   <Phone size={14} />
                 </Button>
               )}
@@ -135,11 +136,16 @@ const InProgressView = ({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-9 px-3 inline-flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                  className="relative inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap px-3"
                   onClick={onChat}
                 >
                   <MessageSquare size={14} className="shrink-0" />
                   <span>Nhắn tin</span>
+                  {unreadCount > 0 && (
+                    <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  )}
                 </Button>
               )}
             </div>

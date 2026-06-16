@@ -17,6 +17,7 @@ import { mapOrder } from "@/lib/mappers/order.mapper";
 import { connectSocket } from "@/lib/socket";
 import { fetchOrderMessages, sendOrderMessage } from "@/lib/api/chat";
 import { Badge } from "@/components/ui/badge";
+import useUnreadMessagesStore from "@/hooks/useUnreadMessages";
 
 type RealtimeOrderPayload = {
   [key: string]: unknown;
@@ -525,13 +526,18 @@ function OrderTrackingPageContent() {
         const fromMe = String(msg.senderId ?? '') === userId;
         const time = new Date(msg.createdAt ?? Date.now()).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
         const chatMsg = { id: mid, fromMe, text: msg.text, time, read: true };
-        setChatMessages((prev) => {
-          if (prev.some((item) => item.id === chatMsg.id)) {
-            return prev;
-          }
+        if (chatOpen) {
+          setChatMessages((prev) => {
+            if (prev.some((item) => item.id === chatMsg.id)) {
+              return prev;
+            }
 
-          return [...prev, chatMsg];
-        });
+            return [...prev, chatMsg];
+          });
+          useUnreadMessagesStore.getState().clearUnread(currentOrderId);
+        } else if (!fromMe) {
+          useUnreadMessagesStore.getState().incrementUnread(currentOrderId, 1);
+        }
       } catch (err) {
         console.error('CHAT MSG ERR', err);
       }
@@ -556,14 +562,19 @@ function OrderTrackingPageContent() {
 
       window.clearInterval(pollInterval);
     };
-  }, [authLoading, user?.id, user?._id, user?.role, orderId, fetchOrder, queueOrderRefresh]);
+  }, [authLoading, user?.id, user?._id, user?.role, orderId, fetchOrder, queueOrderRefresh, chatOpen]);
 
   // open chat modal and load messages
   const handleOpenChat = async () => {
     if (!order) return;
     const taskerName = String(order.tasker?.name ?? 'Người thực hiện');
     setChatPeerName(taskerName);
+    useUnreadMessagesStore.getState().clearUnread(order._id);
     try {
+      await fetch(`/api/chat/orders/${order._id}/messages/mark-read`, {
+        method: "PATCH",
+        credentials: "include",
+      }).catch(() => null);
       const msgs = await fetchOrderMessages(order._id);
       const mapped = msgs.map((m: any) => ({
         id: String(m._id ?? m.id),

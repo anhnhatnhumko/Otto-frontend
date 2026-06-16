@@ -32,8 +32,13 @@ export const NotificationCenter = () => {
     markAsRead,
     markAllAsRead,
     deleteNotification,
+    hasIdentity,
   } = useNotifications();
   const [isOpen, setIsOpen] = useState(false);
+
+  if (!hasIdentity && notifications.length === 0) {
+    return null;
+  }
 
   const handleNotificationClick = (notification: {
     _id: string;
