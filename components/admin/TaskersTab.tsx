@@ -63,6 +63,8 @@ import { toast } from "@/hooks/use-toast";
 import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
 import { useUserStore } from "@/app/store/useUserStore";
 
+const ADMIN_TASKER_REQUESTS_UNREAD_KEY = "admin_tasker_requests";
+
 interface TaskersTabProps {
   taskers: Tasker[];
   services: Service[];
@@ -101,7 +103,7 @@ export function TaskersTab({
   const [isAddTaskerOpen, setIsAddTaskerOpen] = useState(false);
   const [isListOpen, setIsListOpen] = useState(false);
   const [requests, setRequests] = useState<any[]>([]);
-  const { unreadIds: unreadRequestIds, setUnreadRequestIds, addUnread, removeUnread } = useUnreadNotifications('tasker_requests');
+  const { unreadIds: unreadRequestIds, addUnread, removeUnread } = useUnreadNotifications(ADMIN_TASKER_REQUESTS_UNREAD_KEY);
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
   const authUser = useUserStore((state) => state.user) as
     | { _id?: string; id?: string; role?: string }
@@ -109,8 +111,14 @@ export function TaskersTab({
   const [prefillTaskerData, setPrefillTaskerData] =
     useState<AddTaskerPrefillData | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [socketIdentity, setSocketIdentity] = useState<{
+    userId: string;
+    role: string;
+  } | null>(null);
   const socketUserId = String(authUser?._id ?? authUser?.id ?? "").trim();
   const socketRole = String(authUser?.role ?? "ADMIN").trim().toUpperCase();
+  const activeSocketUserId = socketIdentity?.userId ?? "";
+  const activeSocketRole = socketIdentity?.role ?? "ADMIN";
 
   // 🔥 PAGINATION STATE
   const [page, setPage] = useState(1);
@@ -121,8 +129,47 @@ export function TaskersTab({
     statusFilter !== "all" || provinceId !== "all" || wardId !== "all";
   const hasLoadedRequestsRef = useRef(false);
   const pendingNewIdsRef = useRef<Set<string>>(new Set());
-  const seenStorageKey = "seen_notifications_tasker_requests";
+  const seenStorageKey = `seen_notifications_${ADMIN_TASKER_REQUESTS_UNREAD_KEY}`;
   const seenIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (socketUserId) {
+      setSocketIdentity({
+        userId: socketUserId,
+        role: socketRole || "ADMIN",
+      });
+      return;
+    }
+
+    let cancelled = false;
+
+    const bootstrapIdentity = async () => {
+      try {
+        const res = await fetch("/api/auth/me", {
+          credentials: "include",
+          cache: "no-store",
+        });
+
+        if (!res.ok) return;
+
+        const user = await res.json();
+        const userId = String(user?._id ?? user?.id ?? "").trim();
+        const role = String(user?.role ?? "ADMIN").trim().toUpperCase();
+
+        if (!cancelled && userId) {
+          setSocketIdentity({ userId, role });
+        }
+      } catch {
+        return;
+      }
+    };
+
+    void bootstrapIdentity();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [socketRole, socketUserId]);
 
   // ================= FILTER =================
   // const filtered = taskers.filter((t) => {
@@ -197,7 +244,10 @@ export function TaskersTab({
 
     const fetchRequests = async () => {
       try {
-        const res = await fetch(`/api/admin/taskers/requests`);
+        const res = await fetch(`/api/admin/taskers/requests`, {
+          credentials: "include",
+          cache: "no-store",
+        });
         if (res.ok) {
           const json = await res.json();
           const list = Array.isArray(json)
@@ -231,7 +281,7 @@ export function TaskersTab({
 
               try {
                 pendingNewIdsRef.current.forEach((id) => {
-                  if (id && !seenIdsRef.current.has(id) && !unreadRequestIds.has(id)) {
+                  if (id && !unreadRequestIds.has(id)) {
                     idsToMarkUnread.push(id);
                   }
                   seenIdsRef.current.add(id);
@@ -272,12 +322,12 @@ export function TaskersTab({
   // REALTIME: listen for new tasker requests
   // ============================
   useEffect(() => {
-    if (!socketUserId) {
+    if (!activeSocketUserId) {
       return;
     }
 
     try {
-      const socket = connectSocket(socketUserId, socketRole);
+      const socket = connectSocket(activeSocketUserId, activeSocketRole);
       if (!socket) return;
 
       const handleCreated = (payload: any) => {
@@ -361,6 +411,7 @@ export function TaskersTab({
         }
       };
 
+      socket.on('admin:new-tasker-request', handleCreated);
       socket.on('admin:tasker-request-created', handleCreated);
       socket.on('admin:tasker-requests:created', handleCreated);
       socket.on('admin:tasker-request-updated', handleUpdated);
@@ -370,6 +421,7 @@ export function TaskersTab({
 
       return () => {
         try {
+          socket.off('admin:new-tasker-request', handleCreated);
           socket.off('admin:tasker-request-created', handleCreated);
           socket.off('admin:tasker-requests:created', handleCreated);
           socket.off('admin:tasker-request-updated', handleUpdated);
@@ -383,7 +435,7 @@ export function TaskersTab({
     } catch (err) {
       console.warn('Socket setup failed', err);
     }
-  }, [socketRole, socketUserId]);
+  }, [activeSocketRole, activeSocketUserId]);
 
   // ============================
   // LOAD WARDS BY PROVINCE
@@ -569,7 +621,10 @@ export function TaskersTab({
 
   const openDetail = async (id: string) => {
     try {
-      const res = await fetch(`/api/admin/taskers/requests/${id}`);
+      const res = await fetch(`/api/admin/taskers/requests/${id}`, {
+        credentials: "include",
+        cache: "no-store",
+      });
       if (res.ok) {
         const json = await res.json();
         const item = json?.data ?? json;

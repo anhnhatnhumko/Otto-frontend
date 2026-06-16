@@ -34,20 +34,23 @@ import { connectSocket } from "@/lib/socket";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useUserStore } from "@/app/store/useUserStore";
 
-
-
+const ADMIN_TASKER_REQUESTS_UNREAD_KEY = "admin_tasker_requests";
 
 const AdminHeader = () => {
     const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [requests, setRequests] = useState<any[]>([]);
-  const { unreadIds: unreadRequestIds, addUnread, removeUnread, clearUnread } = useUnreadNotifications('admin_notifications');
+  const { unreadIds: unreadRequestIds, addUnread, removeUnread, clearUnread } = useUnreadNotifications(ADMIN_TASKER_REQUESTS_UNREAD_KEY);
   const hasLoadedRequestsRef = useRef(false);
   const pendingNewIdsRef = useRef<Set<string>>(new Set());
-  const seenStorageKey = `seen_notifications_admin_notifications`;
+  const seenStorageKey = `seen_notifications_${ADMIN_TASKER_REQUESTS_UNREAD_KEY}`;
   const seenIdsRef = useRef<Set<string>>(new Set());
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isListOpen, setIsListOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
+  const [socketIdentity, setSocketIdentity] = useState<{
+    userId: string;
+    role: string;
+  } | null>(null);
     const router = useRouter();
     const logout = useLogout();
   const authUser = useUserStore((state) => state.user) as
@@ -56,9 +59,50 @@ const AdminHeader = () => {
   const API_URL = "/api";
   const socketUserId = String(authUser?._id ?? authUser?.id ?? "").trim();
   const socketRole = String(authUser?.role ?? "ADMIN").trim().toUpperCase();
+  const activeSocketUserId = socketIdentity?.userId ?? "";
+  const activeSocketRole = socketIdentity?.role ?? "ADMIN";
 
   useEffect(() => {
-    if (!socketUserId) {
+    if (socketUserId) {
+      setSocketIdentity({
+        userId: socketUserId,
+        role: socketRole || "ADMIN",
+      });
+      return;
+    }
+
+    let cancelled = false;
+
+    const bootstrapIdentity = async () => {
+      try {
+        const res = await fetch("/api/auth/me", {
+          credentials: "include",
+          cache: "no-store",
+        });
+
+        if (!res.ok) return;
+
+        const user = await res.json();
+        const userId = String(user?._id ?? user?.id ?? "").trim();
+        const role = String(user?.role ?? "ADMIN").trim().toUpperCase();
+
+        if (!cancelled && userId) {
+          setSocketIdentity({ userId, role });
+        }
+      } catch {
+        return;
+      }
+    };
+
+    void bootstrapIdentity();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [socketRole, socketUserId]);
+
+  useEffect(() => {
+    if (!activeSocketUserId) {
       return;
     }
 
@@ -76,7 +120,7 @@ const AdminHeader = () => {
     }
     // connect as ADMIN to receive admin events
     try {
-      const socket = connectSocket(socketUserId, socketRole);
+      const socket = connectSocket(activeSocketUserId, activeSocketRole);
       if (!socket) return;
 
       const handleNew = (payload: any) => {
@@ -126,11 +170,16 @@ const AdminHeader = () => {
         } catch (err) {}
       };
 
+      const handleConnect = () => {
+        void fetchList();
+      };
+
       socket.on("admin:new-tasker-request", handleNew);
       socket.on("admin:tasker-request-created", handleNew);
       socket.on("admin:tasker-requests:created", handleNew);
       socket.on("admin:tasker-request-deleted", handleDeleted);
       socket.on("admin:tasker-requests:deleted", handleDeleted);
+      socket.on("connect", handleConnect);
 
       return () => {
         socket.off("admin:new-tasker-request", handleNew);
@@ -138,16 +187,20 @@ const AdminHeader = () => {
         socket.off("admin:tasker-requests:created", handleNew);
         socket.off("admin:tasker-request-deleted", handleDeleted);
         socket.off("admin:tasker-requests:deleted", handleDeleted);
+        socket.off("connect", handleConnect);
       };
     } catch (err) {
       console.error("Admin socket init failed", err);
     }
-  }, [socketRole, socketUserId]);
+  }, [activeSocketRole, activeSocketUserId]);
 
   const fetchList = async () => {
     if (!API_URL) return;
     try {
-      const res = await fetch(`/api/admin/taskers/requests`);
+      const res = await fetch(`/api/admin/taskers/requests`, {
+        credentials: "include",
+        cache: "no-store",
+      });
       if (res.ok) {
         const json = await res.json();
         // API may return { success: true, data: [...] } or raw array
@@ -185,7 +238,7 @@ const AdminHeader = () => {
             // Process any pending new ids that arrived via socket before initial load
             try {
               pendingNewIdsRef.current.forEach((id) => {
-                if (id && !seenIdsRef.current.has(id) && !unreadRequestIds.has(id)) {
+                if (id && !unreadRequestIds.has(id)) {
                   idsToMarkUnread.push(id);
                 }
                 seenIdsRef.current.add(id);
@@ -226,7 +279,10 @@ const AdminHeader = () => {
   const openDetail = async (id: string) => {
     if (!API_URL) return;
     try {
-      const res = await fetch(`/api/admin/taskers/requests/${id}`);
+      const res = await fetch(`/api/admin/taskers/requests/${id}`, {
+        credentials: "include",
+        cache: "no-store",
+      });
       if (res.ok) {
         const json = await res.json();
         const item = json?.data ?? json;
