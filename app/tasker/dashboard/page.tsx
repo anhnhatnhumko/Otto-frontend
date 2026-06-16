@@ -62,7 +62,6 @@ const TaskerDashboardContent = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [showNewJobPopup, setShowNewJobPopup] = useState(false);
   const [incomingJob, setIncomingJob] = useState<Job | null>(null);
-  const [seenJobIds, setSeenJobIds] = useState<Set<string>>(new Set());
   const [completedJob, setCompletedJob] = useState<Job | null>(null);
   const [showCompletionPopup, setShowCompletionPopup] = useState(false);
   const [loadingMe, setLoadingMe] = useState(true);
@@ -74,6 +73,22 @@ const TaskerDashboardContent = () => {
   const [pendingChatOrderId, setPendingChatOrderId] = useState<string | null>(null);
   const walletRefreshTimeoutRef = useRef<number | null>(null);
   const walletRefreshLongTimeoutRef = useRef<number | null>(null);
+  const seenJobIdsRef = useRef<Set<string>>(new Set());
+  const incomingJobRef = useRef<Job | null>(null);
+
+  const closeIncomingJobPopup = useCallback((orderId?: string) => {
+    if (orderId && incomingJobRef.current?.id !== orderId) {
+      return;
+    }
+
+    incomingJobRef.current = null;
+    setShowNewJobPopup(false);
+    setIncomingJob(null);
+  }, []);
+
+  useEffect(() => {
+    incomingJobRef.current = incomingJob;
+  }, [incomingJob]);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -217,15 +232,31 @@ const TaskerDashboardContent = () => {
         const merged = [...available, ...myJobs];
 
         const mapped = merged.map(mapOrderToJob);
+        const activeIncomingJob = incomingJobRef.current;
+
+        if (activeIncomingJob) {
+          const refreshedIncomingJob = mapped.find(
+            (job) => job.id === activeIncomingJob.id,
+          );
+
+          if (!refreshedIncomingJob || refreshedIncomingJob.status !== "SEARCHING") {
+            closeIncomingJobPopup(activeIncomingJob.id);
+          } else {
+            incomingJobRef.current = refreshedIncomingJob;
+            setIncomingJob(refreshedIncomingJob);
+          }
+        }
 
         // Detect new searching jobs
         const newJobs = mapped.filter(
-          (job) => !seenJobIds.has(job.id) && job.status === "SEARCHING",
+          (job) =>
+            !seenJobIdsRef.current.has(job.id) && job.status === "SEARCHING",
         );
 
-        if (newJobs.length > 0) {
+        if (!incomingJobRef.current && newJobs.length > 0) {
           const newest = newJobs[0];
 
+          incomingJobRef.current = newest;
           setIncomingJob(newest);
           setShowNewJobPopup(true);
 
@@ -233,10 +264,8 @@ const TaskerDashboardContent = () => {
         }
 
         // Update seen ids
-        setSeenJobIds((prev) => {
-          const updated = new Set(prev);
-          mapped.forEach((j) => updated.add(j.id));
-          return updated;
+        mapped.forEach((job) => {
+          seenJobIdsRef.current.add(job.id);
         });
 
         // Initialize unread message counts
@@ -265,7 +294,7 @@ const TaskerDashboardContent = () => {
     }, 5000); // 5s
 
     return () => clearInterval(interval);
-  }, [toast]);
+  }, [closeIncomingJobPopup, toast]);
 
   // =========================
   // FILTER
@@ -492,8 +521,7 @@ const TaskerDashboardContent = () => {
         // Remove job immediately from lists
         setJobs((prev) => prev.filter((j) => j.id !== orderId));
         // Also close incoming popup if it matches
-        setIncomingJob((prev) => (prev && prev.id === orderId ? null : prev));
-        setShowNewJobPopup((prev) => false);
+        closeIncomingJobPopup(orderId);
 
         // Show toast notification
         toast({
@@ -613,9 +641,12 @@ const TaskerDashboardContent = () => {
           // remove job immediately from lists
           setJobs((prev) => prev.filter((j) => j.id !== id));
           // also close incoming popup if it matches
-          setIncomingJob((prev) => (prev && prev.id === id ? null : prev));
-          setShowNewJobPopup((prev) => (incomingJob && incomingJob.id === id ? false : prev));
+          closeIncomingJobPopup(id);
         } else {
+          if (status && status !== "SEARCHING") {
+            closeIncomingJobPopup(id);
+          }
+
           // update job status if present in list
           const allowed = new Set([
             "SEARCHING",
@@ -644,9 +675,12 @@ const TaskerDashboardContent = () => {
         const status = String(order?.status ?? "").toUpperCase();
         if (status === "CANCELLED" || status === "AUTO_CANCELLED") {
           setJobs((prev) => prev.filter((j) => j.id !== id));
-          setIncomingJob((prev) => (prev && prev.id === id ? null : prev));
-          setShowNewJobPopup((prev) => (incomingJob && incomingJob.id === id ? false : prev));
+          closeIncomingJobPopup(id);
         } else {
+          if (status && status !== "SEARCHING") {
+            closeIncomingJobPopup(id);
+          }
+
           const allowed = new Set([
             "SEARCHING",
             "ASSIGNED",
@@ -678,7 +712,7 @@ const TaskerDashboardContent = () => {
       socket.off("notification:new", handleWalletRealtime);
       socket.off("connect", handleWalletRealtime);
     };
-  }, [userId, chatOrderId, chatOpen, incomingJob, scheduleWalletRefresh]);
+  }, [chatOpen, chatOrderId, closeIncomingJobPopup, scheduleWalletRefresh, userId]);
 
   useEffect(() => {
     const shouldOpenChat = searchParams.get("chat") === "true";
@@ -832,14 +866,24 @@ const TaskerDashboardContent = () => {
       );
 
       // Close popup if this job came from the incoming popup
-      if (incomingJob?.id === jobId) {
-        setShowNewJobPopup(false);
-        setIncomingJob(null);
-      }
+      closeIncomingJobPopup(jobId);
     } catch (err: any) {
+      const message = String(err?.message || "Không thể nhận đơn");
+
+      if (/order already taken|already taken|đã được nhận|đã có người nhận/i.test(message)) {
+        closeIncomingJobPopup(jobId);
+        setJobs((prev) => prev.filter((j) => j.id !== jobId));
+        toast({
+          title: "Đơn đã có người nhận",
+          description: "Đơn hàng này đã được tasker khác nhận trước đó.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       toast({
         title: "Lỗi",
-        description: err.message,
+        description: message,
         variant: "destructive",
       });
     }
@@ -861,8 +905,7 @@ const TaskerDashboardContent = () => {
 
         toast({ title: "Đã từ chối", variant: "destructive" });
 
-        setShowNewJobPopup(false);
-        setIncomingJob(null);
+        closeIncomingJobPopup(incomingJob.id);
         setJobs((prev) => prev.filter((j) => j.id !== incomingJob.id));
       } catch (err: any) {
         toast({ title: "Lỗi", description: err.message, variant: "destructive" });
@@ -893,8 +936,7 @@ const TaskerDashboardContent = () => {
 
       const status = payload?.status ?? payload?.data?.status;
       if (status && status !== "SEARCHING") {
-        setShowNewJobPopup(false);
-        setIncomingJob(null);
+        closeIncomingJobPopup(orderId);
         setJobs((prev) => prev.map((j) => (j.id === orderId ? { ...j, status } : j)));
       }
     };
@@ -903,8 +945,7 @@ const TaskerDashboardContent = () => {
       const id = String(order?._id ?? order?.id ?? "");
       if (id !== orderId) return;
       if (order.status && order.status !== "SEARCHING") {
-        setShowNewJobPopup(false);
-        setIncomingJob(null);
+        closeIncomingJobPopup(id);
         setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, status: order.status } : j)));
       }
     };
@@ -916,8 +957,7 @@ const TaskerDashboardContent = () => {
 
       console.log("Incoming job cancelled:", orderId);
 
-      setShowNewJobPopup(false);
-      setIncomingJob(null);
+      closeIncomingJobPopup(orderId);
       setJobs((prev) => prev.filter((j) => j.id !== orderId));
 
       toast({
@@ -934,8 +974,7 @@ const TaskerDashboardContent = () => {
 
       console.log("Incoming job kept:", orderId);
 
-      setShowNewJobPopup(false);
-      setIncomingJob(null);
+      closeIncomingJobPopup(orderId);
       setJobs((prev) =>
         prev.map((j) => (j.id === orderId ? { ...j, status: "ASSIGNED" } : j))
       );
@@ -957,7 +996,7 @@ const TaskerDashboardContent = () => {
       socket.off("order:cancelled", handleCancelled);
       socket.off("order:kept", handleKept);
     };
-  }, [userId, incomingJob]);
+  }, [closeIncomingJobPopup, incomingJob, userId]);
 
   // =========================
   // UI
@@ -1148,7 +1187,12 @@ const TaskerDashboardContent = () => {
       <TaskerNewJobPopup
         job={incomingJob}
         open={showNewJobPopup}
-        onOpenChange={setShowNewJobPopup}
+        onOpenChange={(open) => {
+          setShowNewJobPopup(open);
+          if (!open) {
+            closeIncomingJobPopup();
+          }
+        }}
         onAccept={handleAccept}
         onReject={handleRejectIncomingJob}
       />
