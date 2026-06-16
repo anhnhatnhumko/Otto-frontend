@@ -57,9 +57,9 @@ export const connectSocket = (
 
   socket = io(apiUrl, {
     withCredentials: true,
-    // Start with polling for more reliable first-connect on deployed proxies,
-    // then upgrade to websocket as soon as it is available.
-    transports: ["polling", "websocket"],
+    // Prefer websocket first for lower realtime latency, while still
+    // allowing polling as a fallback if the deploy proxy cannot upgrade.
+    transports: ["websocket", "polling"],
     upgrade: true,
     timeout: 20000,
     reconnection: true,

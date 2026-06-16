@@ -4,6 +4,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import useActiveChatStore from "@/hooks/useActiveChat";
 import useUnreadMessagesStore from "@/hooks/useUnreadMessages";
 import TaskerProfileHeader from "@/components/tasker/TaskerProfileHeader";
 import TaskerStatsGrid from "@/components/tasker/TaskerStatsGrid";
@@ -191,6 +192,9 @@ const TaskerDashboardContent = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatOrderId, setChatOrderId] = useState<string | null>(null);
   const [pendingChatOrderId, setPendingChatOrderId] = useState<string | null>(null);
+  const setActiveChatOrderId = useActiveChatStore(
+    (state) => state.setActiveOrderId,
+  );
   const walletRefreshTimeoutRef = useRef<number | null>(null);
   const walletRefreshLongTimeoutRef = useRef<number | null>(null);
   const jobsRefreshTimeoutRef = useRef<number | null>(null);
@@ -764,16 +768,7 @@ const TaskerDashboardContent = () => {
 
           return [...prev, nextMessage];
         });
-      } else if (!isFromMe) {
-        useUnreadMessagesStore.getState().incrementUnread(incomingOrderId, 1);
-
-        setJobs((prev) =>
-          prev.map((job) =>
-            job.id === incomingOrderId
-              ? { ...job, unreadMessages: (job.unreadMessages || 0) + 1 }
-              : job
-          )
-        );
+        useUnreadMessagesStore.getState().clearUnread(incomingOrderId);
       }
     };
 
@@ -875,6 +870,23 @@ const TaskerDashboardContent = () => {
     scheduleWalletRefresh,
     userId,
   ]);
+
+  useEffect(() => {
+    const activeOrderId = chatOpen && chatOrderId ? chatOrderId : null;
+    setActiveChatOrderId(activeOrderId);
+
+    return () => {
+      if (activeOrderId) {
+        useActiveChatStore.getState().setActiveOrderId(null);
+      }
+    };
+  }, [chatOpen, chatOrderId, setActiveChatOrderId]);
+
+  useEffect(() => {
+    if (chatOpen && chatOrderId) {
+      useUnreadMessagesStore.getState().clearUnread(chatOrderId);
+    }
+  }, [chatMessages, chatOpen, chatOrderId]);
 
   useEffect(() => {
     const shouldOpenChat = searchParams.get("chat") === "true";
@@ -1372,6 +1384,7 @@ const TaskerDashboardContent = () => {
       <ChatDialog
         open={chatOpen}
         onOpenChange={setChatOpen}
+        conversationKey={chatOrderId ?? undefined}
         peerName={chatPeerName}
         initialMessages={chatMessages}
         onSend={handleSendChat}

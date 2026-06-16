@@ -1,6 +1,7 @@
 "use client";
 
 import OverdueOrderPopup from "@/components/OverdueOrderPopup";
+import useActiveChatStore from "@/hooks/useActiveChat";
 import { useToast } from "@/hooks/use-toast";
 import { useOverdueOrder } from "@/hooks/useOverdueOrder";
 import {
@@ -140,6 +141,9 @@ export default function GlobalNotificationPopup({ userId, role }: Props) {
     const handleChatRealtime = (payload: unknown) => {
       const optimistic = buildOptimisticChatNotification(payload, userId, role);
       if (!optimistic) return;
+      if (useActiveChatStore.getState().isActiveOrder(optimistic.orderId)) {
+        return;
+      }
 
       const identity = getRealtimeNotificationIdentity(optimistic);
       if (identity && shownIds.current.has(identity)) return;

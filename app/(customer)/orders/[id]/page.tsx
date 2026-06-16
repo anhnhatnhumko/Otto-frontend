@@ -13,6 +13,7 @@ import { ArrowLeft, Activity, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 import { useAuth } from "@/hooks/useAuth";
+import useActiveChatStore from "@/hooks/useActiveChat";
 import { mapOrder } from "@/lib/mappers/order.mapper";
 import { connectSocket } from "@/lib/socket";
 import { fetchOrderMessages, sendOrderMessage } from "@/lib/api/chat";
@@ -235,6 +236,9 @@ function OrderTrackingPageContent() {
   const [chatPeerName, setChatPeerName] = useState<string>("");
   const [cancelMessage, setCancelMessage] = useState<string | null>(null);
   const queuedRefreshRef = useRef<number | null>(null);
+  const setActiveChatOrderId = useActiveChatStore(
+    (state) => state.setActiveOrderId,
+  );
 
   // Popup quá hạn
   const {
@@ -535,8 +539,6 @@ function OrderTrackingPageContent() {
             return [...prev, chatMsg];
           });
           useUnreadMessagesStore.getState().clearUnread(currentOrderId);
-        } else if (!fromMe) {
-          useUnreadMessagesStore.getState().incrementUnread(currentOrderId, 1);
         }
       } catch (err) {
         console.error('CHAT MSG ERR', err);
@@ -563,6 +565,23 @@ function OrderTrackingPageContent() {
       window.clearInterval(pollInterval);
     };
   }, [authLoading, user?.id, user?._id, user?.role, orderId, fetchOrder, queueOrderRefresh, chatOpen]);
+
+  useEffect(() => {
+    const activeOrderId = chatOpen && order?._id ? order._id : null;
+    setActiveChatOrderId(activeOrderId);
+
+    return () => {
+      if (activeOrderId) {
+        useActiveChatStore.getState().setActiveOrderId(null);
+      }
+    };
+  }, [chatOpen, order?._id, setActiveChatOrderId]);
+
+  useEffect(() => {
+    if (chatOpen && order?._id) {
+      useUnreadMessagesStore.getState().clearUnread(order._id);
+    }
+  }, [chatMessages, chatOpen, order?._id]);
 
   // open chat modal and load messages
   const handleOpenChat = async () => {
@@ -720,6 +739,7 @@ function OrderTrackingPageContent() {
       <ChatDialog
         open={chatOpen}
         onOpenChange={(o) => setChatOpen(o)}
+        conversationKey={order._id}
         peerName={chatPeerName}
         initialMessages={chatMessages}
         onSend={handleSendChat}

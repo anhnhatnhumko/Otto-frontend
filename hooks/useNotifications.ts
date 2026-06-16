@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { connectSocket } from '@/lib/socket';
 import { useUserStore } from '@/app/store/useUserStore';
+import useActiveChatStore from '@/hooks/useActiveChat';
 import {
   buildOptimisticChatNotification,
   buildOptimisticCustomerOrderNotification,
@@ -264,6 +265,9 @@ export const useNotifications = () => {
       const handleChatRealtime = (payload: unknown) => {
         const optimistic = buildOptimisticChatNotification(payload, userId, userRole);
         if (!optimistic) return;
+        if (useActiveChatStore.getState().isActiveOrder(optimistic.orderId)) {
+          return;
+        }
 
         setNotifications((prev) =>
           upsertRealtimeNotification(prev, optimistic as Notification)

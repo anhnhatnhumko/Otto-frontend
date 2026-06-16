@@ -56,9 +56,11 @@ export default function Admin() {
     services,
     taskers,
     isRealtimeConnected,
-    // setOrders,
-    // setUsers,
-    // setTaskers,
+    setOrders,
+    setUsers,
+    setTaskers,
+    reloadOrders,
+    reloadUsers,
     reloadServices,
     reloadTaskers,
   } = useAdminData();
@@ -81,6 +83,79 @@ export default function Admin() {
   const [provinceId, setProvinceId] = useState("all");
   const [wardId, setWardId] = useState("all");
   const [loadingAction, setLoadingAction] = useState(false);
+
+  const applyOptimisticAction = (action: string, id: string) => {
+    switch (action) {
+      case "confirm_order":
+        setOrders((prev) =>
+          prev.map((order) =>
+            order.id === id ? { ...order, status: "confirmed" } : order,
+          ),
+        );
+        break;
+      case "cancel_order":
+        setOrders((prev) =>
+          prev.map((order) =>
+            order.id === id ? { ...order, status: "cancelled" } : order,
+          ),
+        );
+        break;
+      case "complete_order":
+        setOrders((prev) =>
+          prev.map((order) =>
+            order.id === id ? { ...order, status: "completed" } : order,
+          ),
+        );
+        break;
+      case "ban_user":
+        setUsers((prev) =>
+          prev.map((item) =>
+            item.id === id ? { ...item, status: "banned" } : item,
+          ),
+        );
+        setSelectedUser((prev) =>
+          prev?.id === id ? { ...prev, status: "banned" } : prev,
+        );
+        break;
+      case "activate_user":
+        setUsers((prev) =>
+          prev.map((item) =>
+            item.id === id ? { ...item, status: "active" } : item,
+          ),
+        );
+        setSelectedUser((prev) =>
+          prev?.id === id ? { ...prev, status: "active" } : prev,
+        );
+        break;
+      case "approve_tasker":
+      case "activate_tasker":
+        setTaskers((prev) =>
+          prev.map((item) =>
+            item.id === id ? { ...item, status: "active" } : item,
+          ),
+        );
+        setSelectedTasker((prev) =>
+          prev?.id === id ? { ...prev, status: "active" } : prev,
+        );
+        break;
+      case "ban_tasker":
+        setTaskers((prev) =>
+          prev.map((item) =>
+            item.id === id ? { ...item, status: "banned" } : item,
+          ),
+        );
+        setSelectedTasker((prev) =>
+          prev?.id === id ? { ...prev, status: "banned" } : prev,
+        );
+        break;
+      case "reject_tasker":
+        setTaskers((prev) => prev.filter((item) => item.id !== id));
+        setSelectedTasker((prev) => (prev?.id === id ? null : prev));
+        break;
+      default:
+        break;
+    }
+  };
 
   // Action handlers
   const openConfirmDialog = (type: string, id: string, action: string) => {
@@ -172,6 +247,28 @@ export default function Admin() {
 
       if (!response?.ok) {
         throw new Error(`Action failed: ${action}`);
+      }
+
+      applyOptimisticAction(action, id);
+
+      switch (action) {
+        case "confirm_order":
+        case "cancel_order":
+        case "complete_order":
+          void reloadOrders();
+          break;
+        case "ban_user":
+        case "activate_user":
+          void reloadUsers();
+          break;
+        case "approve_tasker":
+        case "reject_tasker":
+        case "ban_tasker":
+        case "activate_tasker":
+          void reloadTaskers();
+          break;
+        default:
+          break;
       }
 
       toast({

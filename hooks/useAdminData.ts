@@ -677,6 +677,8 @@ export function useAdminData() {
         setUsers,
         setServices,
         setTaskers,
+        reloadOrders,
+        reloadUsers,
         reloadServices,
         reloadTaskers,
         isRealtimeConnected,

@@ -1,4 +1,6 @@
-import { useState, useRef, useEffect } from "react";
+"use client";
+
+import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +17,7 @@ export interface ChatMessage {
 interface ChatDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  conversationKey?: string;
   peerName: string;
   peerSubtitle?: string;
   peerInitial?: string;
@@ -31,9 +34,18 @@ const defaultQuickReplies = [
   "Cảm ơn bạn!",
 ];
 
+const buildIntroMessage = (peerName: string): ChatMessage => ({
+  id: "m1",
+  fromMe: false,
+  text: `Xin chào, mình là ${peerName}.`,
+  time: getTime(-15),
+  read: true,
+});
+
 const ChatDialog = ({
   open,
   onOpenChange,
+  conversationKey,
   peerName,
   peerSubtitle,
   peerInitial,
@@ -44,116 +56,152 @@ const ChatDialog = ({
   autoReply = "Mình đã nhận được tin nhắn, sẽ phản hồi ngay nhé!",
 }: ChatDialogProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>(
-    initialMessages ?? [
-      {
-        id: "m1",
-        fromMe: false,
-        text: `Xin chào, mình là ${peerName}.`,
-        time: getTime(-15),
-        read: true,
-      },
-    ],
+    initialMessages?.length ? initialMessages : [buildIntroMessage(peerName)],
   );
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const lastConversationKeyRef = useRef("");
 
   useEffect(() => {
-    if (!open) return;
-
-    if (initialMessages && initialMessages.length > 0) {
-      setMessages(initialMessages);
+    if (!open) {
       return;
     }
 
-    setMessages([
-      {
-        id: "m1",
-        fromMe: false,
-        text: `Xin chào, mình là ${peerName}.`,
-        time: getTime(-15),
-        read: true,
-      },
-    ]);
-  }, [open, initialMessages, peerName]);
+    const nextConversationKey = String(conversationKey ?? peerName).trim();
+    if (lastConversationKeyRef.current === nextConversationKey) {
+      return;
+    }
+
+    lastConversationKeyRef.current = nextConversationKey;
+    setMessages(
+      initialMessages?.length ? initialMessages : [buildIntroMessage(peerName)],
+    );
+  }, [conversationKey, initialMessages, open, peerName]);
 
   useEffect(() => {
-    // auto-scroll to bottom on new message
+    if (!open || !initialMessages?.length) {
+      return;
+    }
+
+    setMessages((prev) => {
+      const byId = new Map(prev.map((message) => [message.id, message]));
+
+      for (const message of initialMessages) {
+        byId.set(message.id, {
+          ...byId.get(message.id),
+          ...message,
+        });
+      }
+
+      const next = Array.from(byId.values());
+      const isSame =
+        next.length === prev.length &&
+        next.every((message, index) => {
+          const current = prev[index];
+          return (
+            current &&
+            current.id === message.id &&
+            current.text === message.text &&
+            current.time === message.time &&
+            current.read === message.read &&
+            current.fromMe === message.fromMe
+          );
+        });
+
+      return isSame ? prev : next;
+    });
+  }, [initialMessages, open]);
+
+  useEffect(() => {
     requestAnimationFrame(() => {
-      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+      scrollRef.current?.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: "smooth",
+      });
     });
   }, [messages, isTyping]);
 
   const send = (text: string) => {
-    const t = text.trim();
-    if (!t) return;
-    const msg: ChatMessage = {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    const optimisticMessage: ChatMessage = {
       id: `m-${Date.now()}`,
       fromMe: true,
-      text: t,
+      text: trimmed,
       time: getTime(0),
       read: false,
     };
-    setMessages((prev) => [...prev, msg]);
+
+    setMessages((prev) => [...prev, optimisticMessage]);
     setInput("");
 
     if (onSend) {
       setIsTyping(true);
-      onSend(t)
-        .then((res: Partial<ChatMessage> | void) => {
+      onSend(trimmed)
+        .then((response: Partial<ChatMessage> | void) => {
           setIsTyping(false);
-          if (res && (res as Partial<ChatMessage>).text) {
-            // append server message if any (server echo)
-            setMessages((prev) => [
-              ...prev.map((m) => (m.fromMe ? { ...m, read: true } : m)),
-              {
-                id: String((res as any)._id ?? `s-${Date.now()}`),
-                fromMe: false,
-                text: String((res as any).text ?? autoReply),
-                time: getTime(0),
-                read: true,
-              },
-            ]);
+
+          if (!response || !(response as Partial<ChatMessage>).text) {
+            return;
           }
+
+          setMessages((prev) => [
+            ...prev.map((message) =>
+              message.fromMe ? { ...message, read: true } : message,
+            ),
+            {
+              id: String((response as { _id?: string })._id ?? `s-${Date.now()}`),
+              fromMe: false,
+              text: String((response as { text?: string }).text ?? autoReply),
+              time: getTime(0),
+              read: true,
+            },
+          ]);
         })
         .catch(() => setIsTyping(false));
-    } else {
-      // mock peer reply when no onSend provided (demo)
-      setIsTyping(true);
-      window.setTimeout(() => {
-        setIsTyping(false);
-        setMessages((prev) => [
-          ...prev.map((m) => (m.fromMe ? { ...m, read: true } : m)),
-          {
-            id: `r-${Date.now()}`,
-            fromMe: false,
-            text: autoReply,
-            time: getTime(0),
-            read: true,
-          },
-        ]);
-      }, 1400);
+      return;
     }
+
+    setIsTyping(true);
+    window.setTimeout(() => {
+      setIsTyping(false);
+      setMessages((prev) => [
+        ...prev.map((message) =>
+          message.fromMe ? { ...message, read: true } : message,
+        ),
+        {
+          id: `r-${Date.now()}`,
+          fromMe: false,
+          text: autoReply,
+          time: getTime(0),
+          read: true,
+        },
+      ]);
+    }, 1400);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md p-0 gap-0 overflow-hidden">
-        <DialogHeader className="p-4 border-b border-border bg-card">
+      <DialogContent className="max-w-md gap-0 overflow-hidden p-0">
+        <DialogHeader className="border-b border-border bg-card p-4">
           <DialogTitle className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold text-sm">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
               {peerInitial ?? peerName.charAt(0).toUpperCase()}
             </div>
-            <div className="flex-1 min-w-0 text-left">
-              <p className="text-sm font-semibold truncate">{peerName}</p>
-              <p className="text-xs text-muted-foreground font-normal truncate">
+            <div className="min-w-0 flex-1 text-left">
+              <p className="truncate text-sm font-semibold">{peerName}</p>
+              <p className="truncate text-xs font-normal text-muted-foreground">
                 {peerSubtitle ?? "Đang hoạt động"}
               </p>
             </div>
             {peerPhone && (
               <a
                 href={`tel:${peerPhone}`}
-                className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors hover:bg-primary/20"
                 aria-label="Gọi điện"
               >
                 <Phone size={16} />
@@ -162,26 +210,38 @@ const ChatDialog = ({
           </DialogTitle>
         </DialogHeader>
 
-        {/* Messages */}
-        <div ref={scrollRef} className="h-[420px] overflow-y-auto bg-muted/30 px-4 py-4 space-y-3">
-          {messages.map((m) => (
-            <div key={m.id} className={`flex ${m.fromMe ? "justify-end" : "justify-start"}`}>
+        <div
+          ref={scrollRef}
+          className="h-[420px] space-y-3 overflow-y-auto bg-muted/30 px-4 py-4"
+        >
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              className={`flex ${message.fromMe ? "justify-end" : "justify-start"}`}
+            >
               <div
                 className={`max-w-[78%] rounded-2xl px-3.5 py-2 text-sm shadow-sm ${
-                  m.fromMe
-                    ? "bg-primary text-primary-foreground rounded-br-sm"
-                    : "bg-card text-foreground rounded-bl-sm border border-border"
+                  message.fromMe
+                    ? "rounded-br-sm bg-primary text-primary-foreground"
+                    : "rounded-bl-sm border border-border bg-card text-foreground"
                 }`}
               >
-                <p className="whitespace-pre-wrap break-words leading-relaxed">{m.text}</p>
+                <p className="whitespace-pre-wrap break-words leading-relaxed">
+                  {message.text}
+                </p>
                 <div
-                  className={`flex items-center gap-1 mt-1 text-[10px] ${
-                    m.fromMe ? "text-primary-foreground/70 justify-end" : "text-muted-foreground"
+                  className={`mt-1 flex items-center gap-1 text-[10px] ${
+                    message.fromMe
+                      ? "justify-end text-primary-foreground/70"
+                      : "text-muted-foreground"
                   }`}
                 >
-                  <span>{m.time}</span>
-                  {m.fromMe && (
-                    <CheckCheck size={12} className={m.read ? "text-blue-200" : "opacity-60"} />
+                  <span>{message.time}</span>
+                  {message.fromMe && (
+                    <CheckCheck
+                      size={12}
+                      className={message.read ? "text-blue-200" : "opacity-60"}
+                    />
                   )}
                 </div>
               </div>
@@ -190,43 +250,50 @@ const ChatDialog = ({
 
           {isTyping && (
             <div className="flex justify-start">
-              <div className="bg-card border border-border rounded-2xl rounded-bl-sm px-3.5 py-2.5 shadow-sm">
-                <div className="flex gap-1 items-center">
-                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: "300ms" }} />
+              <div className="rounded-2xl rounded-bl-sm border border-border bg-card px-3.5 py-2.5 shadow-sm">
+                <div className="flex items-center gap-1">
+                  <span
+                    className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60"
+                    style={{ animationDelay: "0ms" }}
+                  />
+                  <span
+                    className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60"
+                    style={{ animationDelay: "150ms" }}
+                  />
+                  <span
+                    className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60"
+                    style={{ animationDelay: "300ms" }}
+                  />
                 </div>
               </div>
             </div>
           )}
         </div>
 
-        {/* Quick replies */}
         {quickReplies.length > 0 && (
-          <div className="px-3 pt-2 pb-1 flex gap-2 overflow-x-auto bg-card border-t border-border">
-            {quickReplies.map((q) => (
+          <div className="flex gap-2 overflow-x-auto border-t border-border bg-card px-3 pb-1 pt-2">
+            {quickReplies.map((reply) => (
               <button
-                key={q}
-                onClick={() => send(q)}
-                className="shrink-0 text-xs px-3 py-1.5 rounded-full bg-muted hover:bg-muted/70 text-foreground transition-colors"
+                key={reply}
+                onClick={() => send(reply)}
+                className="shrink-0 rounded-full bg-muted px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/70"
               >
-                {q}
+                {reply}
               </button>
             ))}
           </div>
         )}
 
-        {/* Input */}
         <form
-          onSubmit={(e) => {
-            e.preventDefault();
+          onSubmit={(event) => {
+            event.preventDefault();
             send(input);
           }}
-          className="flex items-center gap-2 p-3 bg-card border-t border-border"
+          className="flex items-center gap-2 border-t border-border bg-card p-3"
         >
           <Input
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(event) => setInput(event.target.value)}
             placeholder="Nhập tin nhắn..."
             className="flex-1"
             autoFocus
@@ -241,8 +308,11 @@ const ChatDialog = ({
 };
 
 function getTime(offsetMinutes: number) {
-  const d = new Date(Date.now() + offsetMinutes * 60_000);
-  return d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+  const date = new Date(Date.now() + offsetMinutes * 60_000);
+  return date.toLocaleTimeString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export default ChatDialog;

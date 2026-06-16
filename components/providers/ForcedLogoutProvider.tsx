@@ -13,6 +13,7 @@ type AuthUser = {
   email?: string;
   role?: string;
   avatar?: string;
+  status?: string;
 };
 
 type StoreUser = {
@@ -31,6 +32,9 @@ type ForceLogoutPayload = {
 export const FORCED_LOGOUT_MESSAGE_STORAGE_KEY =
   "otto-forced-logout-message";
 
+const DEFAULT_FORCED_LOGOUT_MESSAGE =
+  "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên để được hỗ trợ.";
+
 function normalizeStoreUser(user: AuthUser): StoreUser | null {
   const userId = String(user._id ?? user.id ?? "").trim();
 
@@ -47,9 +51,6 @@ function normalizeStoreUser(user: AuthUser): StoreUser | null {
   };
 }
 
-const DEFAULT_FORCED_LOGOUT_MESSAGE =
-  "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên để được hỗ trợ.";
-
 export default function ForcedLogoutProvider({
   children,
 }: {
@@ -62,8 +63,11 @@ export default function ForcedLogoutProvider({
   const [resolvedUser, setResolvedUser] = useState<AuthUser | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const isHandlingForceLogoutRef = useRef(false);
+
   const storeUserId = String(user?._id ?? user?.id ?? "").trim();
-  const resolvedUserId = String(resolvedUser?._id ?? resolvedUser?.id ?? "").trim();
+  const resolvedUserId = String(
+    resolvedUser?._id ?? resolvedUser?.id ?? "",
+  ).trim();
 
   const activeUser = useMemo<AuthUser | null>(
     () => user ?? resolvedUser,
@@ -76,6 +80,53 @@ export default function ForcedLogoutProvider({
   const role = useMemo(
     () => String(activeUser?.role ?? "").trim().toUpperCase(),
     [activeUser],
+  );
+
+  const performForcedLogoutRef = useRef(
+    async (payload?: ForceLogoutPayload | { message?: string } | null) => {
+      if (isHandlingForceLogoutRef.current) {
+        return;
+      }
+
+      isHandlingForceLogoutRef.current = true;
+
+      const message =
+        extractUserFacingErrorMessage(
+          payload,
+          DEFAULT_FORCED_LOGOUT_MESSAGE,
+        ) || DEFAULT_FORCED_LOGOUT_MESSAGE;
+
+      try {
+        window.sessionStorage.setItem(
+          FORCED_LOGOUT_MESSAGE_STORAGE_KEY,
+          message,
+        );
+      } catch {
+        // ignore storage errors
+      }
+
+      disconnectSocket();
+
+      try {
+        await fetch("/api/auth/logout", {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+      } catch {
+        // the cookie may already be invalid
+      }
+
+      setResolvedUser(null);
+      setUser(null);
+
+      const target = "/login?forcedLogout=1";
+      if (pathname !== target) {
+        router.replace(target);
+      }
+    },
   );
 
   useEffect(() => {
@@ -107,7 +158,6 @@ export default function ForcedLogoutProvider({
         }
 
         const data = (await res.json()) as AuthUser;
-
         if (cancelled) {
           return;
         }
@@ -141,54 +191,12 @@ export default function ForcedLogoutProvider({
     }
 
     const socket = connectSocket(userId, role);
-
     if (!socket) {
       return;
     }
 
     const handleForceLogout = async (payload: ForceLogoutPayload) => {
-      if (isHandlingForceLogoutRef.current) {
-        return;
-      }
-
-      isHandlingForceLogoutRef.current = true;
-
-      const message =
-        extractUserFacingErrorMessage(
-          payload,
-          DEFAULT_FORCED_LOGOUT_MESSAGE,
-        ) || DEFAULT_FORCED_LOGOUT_MESSAGE;
-
-      try {
-        window.sessionStorage.setItem(
-          FORCED_LOGOUT_MESSAGE_STORAGE_KEY,
-          message,
-        );
-      } catch {
-        // ignore storage errors
-      }
-
-      disconnectSocket();
-
-      try {
-        await fetch("/api/auth/logout", {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-      } catch {
-        // ignore logout failures here because the cookie may already be invalid
-      }
-
-      setResolvedUser(null);
-      setUser(null);
-
-      const target = "/login?forcedLogout=1";
-      if (pathname !== target) {
-        router.replace(target);
-      }
+      await performForcedLogoutRef.current(payload);
     };
 
     socket.on("auth:force-logout", handleForceLogout);
@@ -196,7 +204,76 @@ export default function ForcedLogoutProvider({
     return () => {
       socket.off("auth:force-logout", handleForceLogout);
     };
-  }, [hydrated, pathname, role, router, setUser, userId]);
+  }, [hydrated, role, userId]);
+
+  useEffect(() => {
+    if (!hydrated || !userId || pathname.startsWith("/login")) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const verifySession = async () => {
+      if (cancelled || isHandlingForceLogoutRef.current) {
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/auth/me", {
+          credentials: "include",
+          cache: "no-store",
+        });
+
+        if (cancelled || isHandlingForceLogoutRef.current) {
+          return;
+        }
+
+        if (!res.ok) {
+          await performForcedLogoutRef.current({
+            message: DEFAULT_FORCED_LOGOUT_MESSAGE,
+          });
+          return;
+        }
+
+        const data = (await res.json()) as AuthUser;
+        if (
+          String(data?.status ?? "").trim().toUpperCase() === "BLOCKED"
+        ) {
+          await performForcedLogoutRef.current({
+            message: DEFAULT_FORCED_LOGOUT_MESSAGE,
+          });
+        }
+      } catch {
+        return;
+      }
+    };
+
+    const interval = window.setInterval(() => {
+      void verifySession();
+    }, 5000);
+
+    const handleWindowFocus = () => {
+      void verifySession();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void verifySession();
+      }
+    };
+
+    window.addEventListener("focus", handleWindowFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    void verifySession();
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", handleWindowFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [hydrated, pathname, userId]);
 
   return <>{children}</>;
 }
