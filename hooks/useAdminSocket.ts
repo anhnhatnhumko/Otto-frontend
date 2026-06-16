@@ -43,6 +43,7 @@ export function useAdminSocket({
 
     const socket = connectSocket(identity.userId, identity.role);
     if (!socket) return;
+    let hasConnectedOnce = socket.connected;
 
     const joinAdminRoom = () => {
       socket.emit(ADMIN_SOCKET_EVENTS.JOIN, {
@@ -52,8 +53,13 @@ export function useAdminSocket({
     };
 
     const onConnect = () => {
+      const isReconnect = hasConnectedOnce;
+      hasConnectedOnce = true;
       setIsConnected(true);
       joinAdminRoom();
+      if (isReconnect) {
+        onResync();
+      }
     };
 
     const onDisconnect = () => {
@@ -70,6 +76,7 @@ export function useAdminSocket({
       console.log("[admin-socket:event]", eventName, payload);
     };
 
+    setIsConnected(socket.connected);
     joinAdminRoom();
 
     socket.on("connect", onConnect);
@@ -88,6 +95,7 @@ export function useAdminSocket({
     socket.on(ADMIN_SOCKET_EVENTS.ORDERS_CREATED, onOrderCreated);
     socket.on(ADMIN_SOCKET_EVENTS.ORDERS_UPDATED, onOrderUpdated);
     socket.on(ADMIN_SOCKET_EVENTS.ORDERS_STATUS_UPDATED, onOrderUpdated);
+    socket.on(ADMIN_SOCKET_EVENTS.ORDER_CREATED_GENERIC, onOrderCreated);
     socket.on(ADMIN_SOCKET_EVENTS.ORDER_UPDATED_GENERIC, onOrderUpdated);
     socket.on(ADMIN_SOCKET_EVENTS.ORDER_STATUS_UPDATED_GENERIC, onOrderUpdated);
 
@@ -104,7 +112,6 @@ export function useAdminSocket({
     socket.on(ADMIN_SOCKET_EVENTS.SERVICES_DELETED, onServiceDeleted);
 
     socket.on(ADMIN_SOCKET_EVENTS.STATS_UPDATED, onResync);
-    socket.on("reconnect", onResync);
 
     return () => {
       socket.off("connect", onConnect);
@@ -123,6 +130,7 @@ export function useAdminSocket({
       socket.off(ADMIN_SOCKET_EVENTS.ORDERS_CREATED, onOrderCreated);
       socket.off(ADMIN_SOCKET_EVENTS.ORDERS_UPDATED, onOrderUpdated);
       socket.off(ADMIN_SOCKET_EVENTS.ORDERS_STATUS_UPDATED, onOrderUpdated);
+      socket.off(ADMIN_SOCKET_EVENTS.ORDER_CREATED_GENERIC, onOrderCreated);
       socket.off(ADMIN_SOCKET_EVENTS.ORDER_UPDATED_GENERIC, onOrderUpdated);
       socket.off(ADMIN_SOCKET_EVENTS.ORDER_STATUS_UPDATED_GENERIC, onOrderUpdated);
 
@@ -139,7 +147,6 @@ export function useAdminSocket({
       socket.off(ADMIN_SOCKET_EVENTS.SERVICES_DELETED, onServiceDeleted);
 
       socket.off(ADMIN_SOCKET_EVENTS.STATS_UPDATED, onResync);
-      socket.off("reconnect", onResync);
     };
   }, [
     identity,

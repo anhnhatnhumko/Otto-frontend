@@ -133,6 +133,20 @@ const hasRichOrderFields = (payload: OrderRealtimePayload) => {
     );
 };
 
+const canHydrateRealtimeOrder = (payload: OrderRealtimePayload) => {
+    const candidate = pickOrderPayloadCandidate(payload);
+
+    return Boolean(
+        hasRichOrderFields(payload) ||
+        typeof candidate.totalPrice === "number" ||
+        typeof candidate.amount === "number" ||
+        typeof candidate.service === "string" ||
+        typeof candidate.serviceSnapshot?.name === "string" ||
+        typeof candidate.customer === "string" ||
+        typeof candidate.note === "string"
+    );
+};
+
 const getUserLite = (value: unknown) => {
     const userObj = toRecord(value);
     if (!userObj) return null;
@@ -249,6 +263,26 @@ const buildOrderPatch = (payload: OrderRealtimePayload): Partial<Order> => {
     return patch;
 };
 
+const buildRealtimeOrder = (payload: OrderRealtimePayload): Order | null => {
+    const orderId = getRealtimeOrderId(payload);
+    if (!orderId || !canHydrateRealtimeOrder(payload)) {
+        return null;
+    }
+
+    const candidate = pickOrderPayloadCandidate(payload);
+    const normalized = mapOrder({
+        ...(candidate as ApiOrder),
+        _id: orderId,
+        id: orderId,
+        status: candidate.status ?? payload.status,
+    });
+
+    return {
+        ...normalized,
+        id: orderId,
+    };
+};
+
 // ================= FETCH HELPER =================
 async function fetchJson<T>(
     path: string,
@@ -332,6 +366,14 @@ export function useAdminData() {
             setUsers((prev) => (isSame(prev, newUsers) ? prev : newUsers));
         } catch { }
     }, []);
+
+    const queueOrdersReload = useCallback(() => {
+        const now = Date.now();
+        if (now - lastOrderReloadAtRef.current > 1200) {
+            lastOrderReloadAtRef.current = now;
+            void reloadOrders();
+        }
+    }, [reloadOrders]);
 
     const reloadServices = useCallback(async () => {
         try {
@@ -482,61 +524,63 @@ export function useAdminData() {
         void reloadTaskers();
     }, [reloadTaskers]);
 
-    const onOrderCreated = useCallback((order: ApiOrder) => {
-        const mapped = mapOrder(order);
-        if (!mapped.id) {
-            void reloadOrders();
+    const onOrderCreated = useCallback((incoming: OrderSocketPayload) => {
+        const mapped = buildRealtimeOrder(incoming);
+        if (!mapped?.id) {
+            queueOrdersReload();
             return;
         }
         setOrders((prev) => upsertById(prev, mapped));
 
         // Refresh services counts (throttled) so table always reflects true values
         maybeReloadServices();
-    }, [reloadOrders, maybeReloadServices]);
+    }, [queueOrdersReload, maybeReloadServices]);
 
     const onOrderUpdated = useCallback((incoming: OrderSocketPayload) => {
         const payload = incoming as OrderRealtimePayload;
         const orderId = getRealtimeOrderId(payload);
 
         if (!orderId) {
-            void reloadOrders();
+            queueOrdersReload();
             return;
         }
 
         const patch = buildOrderPatch(payload);
         const hasPatchField = Object.keys(patch).length > 0;
+        const normalizedOrder = buildRealtimeOrder(payload);
 
         let shouldReload = false;
 
         setOrders((prev) => {
             const index = prev.findIndex((item) => item.id === orderId);
             if (index === -1) {
+                if (normalizedOrder) {
+                    return upsertById(prev, normalizedOrder);
+                }
                 shouldReload = true;
                 return prev;
             }
 
             const current = prev[index];
-            const hasRichPayload = hasRichOrderFields(payload);
-
             let nextOrder = current;
+
+            if (normalizedOrder) {
+                nextOrder = {
+                    ...current,
+                    ...normalizedOrder,
+                    id: current.id,
+                };
+            }
 
             if (hasPatchField) {
                 nextOrder = {
-                    ...current,
+                    ...nextOrder,
                     ...patch,
                 };
-            } else if (hasRichPayload) {
-                const normalized = mapOrder({
-                    ...pickOrderPayloadCandidate(payload),
-                    _id: orderId,
-                });
-                nextOrder = {
-                    ...current,
-                    ...normalized,
-                    id: current.id,
-                };
             } else {
-                shouldReload = true;
+                if (nextOrder === current) {
+                    shouldReload = true;
+                }
             }
 
             if (nextOrder === current) {
@@ -549,15 +593,11 @@ export function useAdminData() {
         });
 
         if (shouldReload) {
-            const now = Date.now();
-            if (now - lastOrderReloadAtRef.current > 1500) {
-                lastOrderReloadAtRef.current = now;
-                void reloadOrders();
-            }
+            queueOrdersReload();
         }
         // Ensure services counts stay accurate after order updates (payments, service changes, etc.)
         maybeReloadServices();
-    }, [reloadOrders, maybeReloadServices]);
+    }, [queueOrdersReload, maybeReloadServices]);
 
     const onUserUpsert = useCallback((user: ApiUser) => {
         const mapped = mapUser(user);

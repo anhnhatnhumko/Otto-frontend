@@ -14,6 +14,7 @@ export const ADMIN_SOCKET_EVENTS = {
   ORDERS_CREATED: "admin:orders:created",
   ORDERS_UPDATED: "admin:orders:updated",
   ORDERS_STATUS_UPDATED: "admin:orders:status-updated",
+  ORDER_CREATED_GENERIC: "order:created",
   ORDER_UPDATED_GENERIC: "order:updated",
   ORDER_STATUS_UPDATED_GENERIC: "order:status-updated",
 
@@ -45,7 +46,7 @@ export type OrderSocketPayload = Partial<ApiOrder> & {
 };
 
 export interface AdminSocketHandlers {
-  onOrderCreated: (order: ApiOrder) => void;
+  onOrderCreated: (order: OrderSocketPayload) => void;
   onOrderUpdated: (order: OrderSocketPayload) => void;
   onUserUpsert: (user: ApiUser) => void;
   onUserDeleted: (payload: SocketIdPayload) => void;
