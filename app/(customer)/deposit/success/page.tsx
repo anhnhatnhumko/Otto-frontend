@@ -70,7 +70,7 @@ const DepositSuccess = () => {
 
         if (sessionId) {
           const confirmRes = await fetch(
-            `/api/payments/stripe/success?session_id=${encodeURIComponent(sessionId)}`,
+            `/api/payments/stripe/confirm?session_id=${encodeURIComponent(sessionId)}`,
             {
               credentials: "include",
               cache: "no-store",
