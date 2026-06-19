@@ -1224,14 +1224,14 @@ export default function OrderDetail({ route, navigation }: any) {
               </View>
             </View>
 
-            {order.tasker.phone ? (
+            {/* {order.tasker.phone ? (
               <ActionButton
                 label="Gọi tasker"
                 onPress={handleCallTasker}
                 variant="outline"
                 iconName="phone"
               />
-            ) : null}
+            ) : null} */}
 
             {canChatWithTasker ? (
               <ActionButton

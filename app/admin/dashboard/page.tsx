@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -55,10 +55,13 @@ export default function Admin() {
     users,
     services,
     taskers,
+    provinceId,
+    wardId,
+    setProvinceId,
+    setWardId,
+    setUsers,
+    setTaskers,
     isRealtimeConnected,
-    // setOrders,
-    // setUsers,
-    // setTaskers,
     reloadServices,
     reloadTaskers,
   } = useAdminData();
@@ -78,9 +81,78 @@ export default function Admin() {
   );
   const [serviceForm, setServiceForm] =
     useState<ServiceFormData>(INITIAL_SERVICE_FORM);
-  const [provinceId, setProvinceId] = useState("all");
-  const [wardId, setWardId] = useState("all");
   const [loadingAction, setLoadingAction] = useState(false);
+
+  useEffect(() => {
+    if (!selectedUser) return;
+
+    const nextUser = users.find((user) => user.id === selectedUser.id);
+
+    if (!nextUser) {
+      setSelectedUser(null);
+      setIsUserDetailOpen(false);
+      return;
+    }
+
+    if (nextUser !== selectedUser) {
+      setSelectedUser(nextUser);
+    }
+  }, [selectedUser, users]);
+
+  useEffect(() => {
+    if (!selectedTasker) return;
+
+    const nextTasker = taskers.find((tasker) => tasker.id === selectedTasker.id);
+
+    if (!nextTasker) {
+      setSelectedTasker(null);
+      setIsTaskerDetailOpen(false);
+      return;
+    }
+
+    if (nextTasker !== selectedTasker) {
+      setSelectedTasker(nextTasker);
+    }
+  }, [selectedTasker, taskers]);
+
+  const updateUserStatusLocally = (
+    userId: string,
+    status: User["status"],
+  ) => {
+    setUsers((prev) =>
+      prev.map((user) =>
+        user.id === userId ? { ...user, status } : user,
+      ),
+    );
+
+    setSelectedUser((prev) =>
+      prev?.id === userId ? { ...prev, status } : prev,
+    );
+  };
+
+  const updateTaskerLocally = (
+    taskerId: string,
+    patch: Partial<Tasker> | null,
+  ) => {
+    if (!patch) {
+      setTaskers((prev) => prev.filter((tasker) => tasker.id !== taskerId));
+      setSelectedTasker((prev) => (prev?.id === taskerId ? null : prev));
+      if (selectedTasker?.id === taskerId) {
+        setIsTaskerDetailOpen(false);
+      }
+      return;
+    }
+
+    setTaskers((prev) =>
+      prev.map((tasker) =>
+        tasker.id === taskerId ? { ...tasker, ...patch } : tasker,
+      ),
+    );
+
+    setSelectedTasker((prev) =>
+      prev?.id === taskerId ? { ...prev, ...patch } : prev,
+    );
+  };
 
   // Action handlers
   const openConfirmDialog = (type: string, id: string, action: string) => {
@@ -172,6 +244,42 @@ export default function Admin() {
 
       if (!response?.ok) {
         throw new Error(`Action failed: ${action}`);
+      }
+
+      switch (action) {
+        case "ban_user":
+          updateUserStatusLocally(id, "banned");
+          break;
+
+        case "activate_user":
+          updateUserStatusLocally(id, "active");
+          break;
+
+        case "approve_tasker":
+          updateTaskerLocally(id, {
+            status: "active",
+            verified: true,
+          });
+          break;
+
+        case "ban_tasker":
+          updateTaskerLocally(id, {
+            status: "banned",
+          });
+          break;
+
+        case "activate_tasker":
+          updateTaskerLocally(id, {
+            status: "active",
+          });
+          break;
+
+        case "reject_tasker":
+          updateTaskerLocally(id, null);
+          break;
+
+        default:
+          break;
       }
 
       toast({

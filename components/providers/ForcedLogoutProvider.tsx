@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useUserStore } from "@/app/store/useUserStore";
 import { connectSocket, disconnectSocket } from "@/lib/socket";
@@ -30,6 +30,7 @@ type ForceLogoutPayload = {
 
 export const FORCED_LOGOUT_MESSAGE_STORAGE_KEY =
   "otto-forced-logout-message";
+const SESSION_REVALIDATE_INTERVAL_MS = 15000;
 
 function normalizeStoreUser(user: AuthUser): StoreUser | null {
   const userId = String(user._id ?? user.id ?? "").trim();
@@ -62,6 +63,7 @@ export default function ForcedLogoutProvider({
   const [resolvedUser, setResolvedUser] = useState<AuthUser | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const isHandlingForceLogoutRef = useRef(false);
+  const isCheckingSessionRef = useRef(false);
   const storeUserId = String(user?._id ?? user?.id ?? "").trim();
   const resolvedUserId = String(resolvedUser?._id ?? resolvedUser?.id ?? "").trim();
 
@@ -76,6 +78,54 @@ export default function ForcedLogoutProvider({
   const role = useMemo(
     () => String(activeUser?.role ?? "").trim().toUpperCase(),
     [activeUser],
+  );
+
+  const performForcedLogout = useCallback(
+    async (payload?: ForceLogoutPayload | unknown) => {
+      if (isHandlingForceLogoutRef.current) {
+        return;
+      }
+
+      isHandlingForceLogoutRef.current = true;
+
+      const message =
+        extractUserFacingErrorMessage(
+          payload,
+          DEFAULT_FORCED_LOGOUT_MESSAGE,
+        ) || DEFAULT_FORCED_LOGOUT_MESSAGE;
+
+      try {
+        window.sessionStorage.setItem(
+          FORCED_LOGOUT_MESSAGE_STORAGE_KEY,
+          message,
+        );
+      } catch {
+        // ignore storage errors
+      }
+
+      disconnectSocket();
+
+      try {
+        await fetch("/api/auth/logout", {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+      } catch {
+        // ignore logout failures here because the cookie may already be invalid
+      }
+
+      setResolvedUser(null);
+      setUser(null);
+
+      const target = "/login?forcedLogout=1";
+      if (pathname !== target) {
+        router.replace(target);
+      }
+    },
+    [pathname, router, setUser],
   );
 
   useEffect(() => {
@@ -146,57 +196,81 @@ export default function ForcedLogoutProvider({
       return;
     }
 
-    const handleForceLogout = async (payload: ForceLogoutPayload) => {
-      if (isHandlingForceLogoutRef.current) {
+    socket.on("auth:force-logout", performForcedLogout);
+
+    return () => {
+      socket.off("auth:force-logout", performForcedLogout);
+    };
+  }, [hydrated, performForcedLogout, role, userId]);
+
+  const verifyActiveSession = useCallback(async () => {
+    if (!userId || isHandlingForceLogoutRef.current || isCheckingSessionRef.current) {
+      return;
+    }
+
+    isCheckingSessionRef.current = true;
+
+    try {
+      const res = await fetch("/api/auth/me", {
+        credentials: "include",
+        cache: "no-store",
+      });
+
+      if (res.ok) {
         return;
       }
 
-      isHandlingForceLogoutRef.current = true;
-
-      const message =
-        extractUserFacingErrorMessage(
-          payload,
-          DEFAULT_FORCED_LOGOUT_MESSAGE,
-        ) || DEFAULT_FORCED_LOGOUT_MESSAGE;
+      let payload: unknown = null;
 
       try {
-        window.sessionStorage.setItem(
-          FORCED_LOGOUT_MESSAGE_STORAGE_KEY,
-          message,
-        );
+        payload = await res.json();
       } catch {
-        // ignore storage errors
+        payload = null;
       }
 
-      disconnectSocket();
+      if (res.status === 401 || res.status === 403) {
+        await performForcedLogout(payload);
+      }
+    } catch {
+      // Keep the current session during transient network failures.
+    } finally {
+      isCheckingSessionRef.current = false;
+    }
+  }, [performForcedLogout, userId]);
 
-      try {
-        await fetch("/api/auth/logout", {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-      } catch {
-        // ignore logout failures here because the cookie may already be invalid
+  useEffect(() => {
+    if (!hydrated || !userId || !role) {
+      return;
+    }
+
+    const validateIfVisible = () => {
+      if (document.visibilityState !== "visible") {
+        return;
       }
 
-      setResolvedUser(null);
-      setUser(null);
-
-      const target = "/login?forcedLogout=1";
-      if (pathname !== target) {
-        router.replace(target);
-      }
+      void verifyActiveSession();
     };
 
-    socket.on("auth:force-logout", handleForceLogout);
+    void verifyActiveSession();
+
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const interval = window.setInterval(
+      validateIfVisible,
+      SESSION_REVALIDATE_INTERVAL_MS,
+    );
+
+    window.addEventListener("focus", validateIfVisible);
+    document.addEventListener("visibilitychange", validateIfVisible);
 
     return () => {
-      socket.off("auth:force-logout", handleForceLogout);
+      window.clearInterval(interval);
+      window.removeEventListener("focus", validateIfVisible);
+      document.removeEventListener("visibilitychange", validateIfVisible);
     };
-  }, [hydrated, pathname, role, router, setUser, userId]);
+  }, [hydrated, role, userId, verifyActiveSession]);
 
   return <>{children}</>;
 }
