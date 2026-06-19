@@ -7,6 +7,8 @@ import {
   upsertRealtimeNotification,
 } from '@/lib/realtime-notification';
 
+const DISCONNECTED_POLLING_INTERVAL_MS = 15000;
+
 const fetchAPI = async (path: string, options: RequestInit = {}) => {
   const response = await fetch(`/api${path}`, {
     credentials: 'include',
@@ -42,6 +44,7 @@ export const useNotifications = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSocketConnected, setIsSocketConnected] = useState(false);
   const { user: authUser } = useAuth();
   const storeUser = useUserStore((state) => state.user);
 
@@ -126,6 +129,7 @@ export const useNotifications = () => {
   // Setup socket connection và lắng nghe real-time notification
   useEffect(() => {
     if (!userId) {
+      setIsSocketConnected(false);
       return;
     }
 
@@ -153,13 +157,24 @@ export const useNotifications = () => {
       };
 
       const handleConnect = () => {
+        setIsSocketConnected(true);
         loadNotifications();
+      };
+
+      const handleDisconnect = () => {
+        setIsSocketConnected(false);
       };
 
       socket.on('notification:new', handleNewNotification);
       socket.on('order:updated', handleOrderRealtime);
       socket.on('order:status-updated', handleOrderRealtime);
       socket.on('connect', handleConnect);
+      socket.on('disconnect', handleDisconnect);
+
+      if (socket.connected) {
+        setIsSocketConnected(true);
+      }
+
       loadNotifications();
 
       return () => {
@@ -167,11 +182,29 @@ export const useNotifications = () => {
         socket.off('order:updated', handleOrderRealtime);
         socket.off('order:status-updated', handleOrderRealtime);
         socket.off('connect', handleConnect);
+        socket.off('disconnect', handleDisconnect);
+        setIsSocketConnected(false);
       };
     } catch (error) {
       console.error('Failed to setup notifications:', error);
     }
   }, [userId, userRole, loadNotifications]);
+
+  useEffect(() => {
+    if (!userId || isSocketConnected) {
+      return;
+    }
+
+    void loadNotifications();
+
+    const intervalId = window.setInterval(() => {
+      void loadNotifications();
+    }, DISCONNECTED_POLLING_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isSocketConnected, loadNotifications, userId]);
 
   return {
     notifications,

@@ -24,16 +24,21 @@ type RealtimeOrderPayload = {
   id?: string;
   orderId?: string;
   status?: string;
+  paymentStatus?: string;
+  isPaid?: boolean;
   data?: Record<string, unknown>;
   order?: Record<string, unknown>;
   payload?: Record<string, unknown>;
 };
 
-const TRACKING_EVENTS = [
+const ORDER_UPDATED_EVENTS = [
   "order:updated",
-  "order:status-updated",
   "admin:order-updated",
   "admin:orders:updated",
+] as const;
+
+const ORDER_STATUS_EVENTS = [
+  "order:status-updated",
   "admin:order-status-updated",
   "admin:orders:status-updated",
 ] as const;
@@ -87,6 +92,97 @@ const toTrackingOrder = (data: Record<string, unknown>) => {
     ...mapped,
     startTime: typeof data.startTime === "string" ? data.startTime : "",
     endTime: typeof data.endTime === "string" ? data.endTime : "",
+    raw: data,
+  };
+};
+
+type TrackingOrder = ReturnType<typeof toTrackingOrder>;
+
+const extractRealtimeOrderData = (payload: RealtimeOrderPayload) => {
+  const candidates = [payload?.data, payload?.order, payload?.payload];
+
+  for (const candidate of candidates) {
+    if (candidate && typeof candidate === "object") {
+      return candidate;
+    }
+  }
+
+  if (payload && typeof payload === "object") {
+    return payload as Record<string, unknown>;
+  }
+
+  return null;
+};
+
+const mergeTrackingOrderFromPayload = (
+  currentOrder: TrackingOrder | null,
+  payload: RealtimeOrderPayload,
+) => {
+  const nextData = extractRealtimeOrderData(payload);
+  if (!nextData) {
+    return currentOrder;
+  }
+
+  if (!currentOrder) {
+    return toTrackingOrder(nextData);
+  }
+
+  const mergedRaw: Record<string, unknown> = {
+    ...(currentOrder.raw ?? {}),
+    ...nextData,
+  };
+
+  if (!mergedRaw._id && !mergedRaw.id) {
+    mergedRaw._id = currentOrder._id;
+  }
+
+  return toTrackingOrder(mergedRaw);
+};
+
+const applyTrackingStatusPayload = (
+  currentOrder: TrackingOrder | null,
+  payload: RealtimeOrderPayload,
+) => {
+  if (!currentOrder) {
+    return mergeTrackingOrderFromPayload(currentOrder, payload);
+  }
+
+  const mergedRaw: Record<string, unknown> = {
+    ...(currentOrder.raw ?? {}),
+    ...(extractRealtimeOrderData(payload) ?? {}),
+  };
+
+  if (payload.status) {
+    mergedRaw.status = payload.status;
+  }
+
+  if (payload.paymentStatus) {
+    mergedRaw.paymentStatus = payload.paymentStatus;
+  }
+
+  if (typeof payload.isPaid === "boolean") {
+    mergedRaw.isPaid = payload.isPaid;
+  }
+
+  if (!mergedRaw._id && !mergedRaw.id) {
+    mergedRaw._id = currentOrder._id;
+  }
+
+  const nextOrder = toTrackingOrder(mergedRaw);
+
+  return {
+    ...nextOrder,
+    status: String(mergedRaw.status ?? currentOrder.status ?? nextOrder.status ?? ""),
+    paymentStatus: String(
+      mergedRaw.paymentStatus ??
+        currentOrder.paymentStatus ??
+        nextOrder.paymentStatus ??
+        "",
+    ),
+    isPaid:
+      typeof mergedRaw.isPaid === "boolean"
+        ? Boolean(mergedRaw.isPaid)
+        : Boolean(currentOrder.isPaid ?? nextOrder.isPaid),
   };
 };
 
@@ -100,7 +196,7 @@ function OrderTrackingPageContent() {
 
   const orderId = params?.id as string;
 
-  const [order, setOrder] = useState<ReturnType<typeof toTrackingOrder> | null>(null);
+  const [order, setOrder] = useState<TrackingOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [socketOnline, setSocketOnline] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -136,7 +232,7 @@ function OrderTrackingPageContent() {
     return fallback;
   };
 
-  const canCancelOrder = (currentOrder: ReturnType<typeof toTrackingOrder>) => {
+  const canCancelOrder = (currentOrder: TrackingOrder) => {
     const normalizedStatus = String(currentOrder.status || "").toUpperCase();
     if (normalizedStatus !== "SEARCHING" && normalizedStatus !== "ASSIGNED") {
       return false;
@@ -149,6 +245,27 @@ function OrderTrackingPageContent() {
 
     return start.getTime() - Date.now() > 60 * 60 * 1000;
   };
+
+  const syncRealtimeOrderState = useCallback(
+    (nextOrder: TrackingOrder | null) => {
+      if (!nextOrder) {
+        return;
+      }
+
+      setLastSyncedAt(new Date().toLocaleTimeString("vi-VN"));
+
+      if (
+        String(nextOrder.status).toUpperCase() === "ASSIGNED" &&
+        Boolean(nextOrder.overdueWarningSentAt) &&
+        !overdueOpen
+      ) {
+        showOverduePopup(nextOrder);
+      }
+
+      closePopupIfInvalid(nextOrder);
+    },
+    [closePopupIfInvalid, overdueOpen, showOverduePopup],
+  );
 
   const handleCancelBooking = async () => {
     if (!order) return;
@@ -225,24 +342,15 @@ function OrderTrackingPageContent() {
       const trackedOrder = toTrackingOrder(data);
 
       setOrder(trackedOrder);
-      setLastSyncedAt(new Date().toLocaleTimeString("vi-VN"));
+      syncRealtimeOrderState(trackedOrder);
 
-      const overdueWarningSentAt = (trackedOrder as any).overdueWarningSentAt;
-
-      // 🔥 Hiển thị popup quá hạn chỉ khi status = ASSIGNED và có cảnh báo
-      if (String(trackedOrder.status).toUpperCase() === "ASSIGNED" && Boolean(overdueWarningSentAt) && !overdueOpen) {
-        showOverduePopup(trackedOrder);
-      }
-
-      // 🔥 Đóng popup nếu order không còn trong trạng thái quá hạn
-      closePopupIfInvalid(trackedOrder);
     } catch (err) {
       console.error("FETCH ORDER ERROR:", err);
     } finally {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [orderId, overdueOpen, showOverduePopup, closePopupIfInvalid]);
+  }, [orderId, syncRealtimeOrderState]);
 
   useEffect(() => {
     if (!orderId || orderId === "undefined") return;
@@ -287,14 +395,48 @@ function OrderTrackingPageContent() {
       });
     };
 
-    const handleOrderEvent = (payload: RealtimeOrderPayload) => {
+    const handleOrderUpdated = (payload: RealtimeOrderPayload) => {
       const changedOrderId = getRealtimeOrderId(payload);
       if (changedOrderId !== currentOrderId) return;
 
-      void fetchOrder(true);
+      let nextOrder: TrackingOrder | null = null;
+
+      setOrder((current) => {
+        nextOrder = mergeTrackingOrderFromPayload(current, payload);
+        return nextOrder;
+      });
+
+      if (!nextOrder) {
+        void fetchOrder(true);
+        return;
+      }
+
+      syncRealtimeOrderState(nextOrder);
     };
 
-    const handleConnect = () => setSocketOnline(true);
+    const handleOrderStatusUpdated = (payload: RealtimeOrderPayload) => {
+      const changedOrderId = getRealtimeOrderId(payload);
+      if (changedOrderId !== currentOrderId) return;
+
+      let nextOrder: TrackingOrder | null = null;
+
+      setOrder((current) => {
+        nextOrder = applyTrackingStatusPayload(current, payload);
+        return nextOrder;
+      });
+
+      if (!nextOrder) {
+        void fetchOrder(true);
+        return;
+      }
+
+      syncRealtimeOrderState(nextOrder);
+    };
+
+    const handleConnect = () => {
+      setSocketOnline(true);
+      void fetchOrder(true);
+    };
     const handleDisconnect = () => setSocketOnline(false);
 
     if (socket.connected) {
@@ -307,8 +449,12 @@ function OrderTrackingPageContent() {
     socket.on("connect", joinOrderRoom);
     socket.on("disconnect", handleDisconnect);
 
-    TRACKING_EVENTS.forEach((eventName) => {
-      socket.on(eventName, handleOrderEvent);
+    ORDER_UPDATED_EVENTS.forEach((eventName) => {
+      socket.on(eventName, handleOrderUpdated);
+    });
+
+    ORDER_STATUS_EVENTS.forEach((eventName) => {
+      socket.on(eventName, handleOrderStatusUpdated);
     });
 
     // chat message listener for this order
@@ -327,7 +473,9 @@ function OrderTrackingPageContent() {
     socket.on('chat:message', handleChatMessage);
 
     const pollInterval = window.setInterval(() => {
-      void fetchOrder(true);
+      if (!socket.connected) {
+        void fetchOrder(true);
+      }
     }, 15000);
 
     return () => {
@@ -335,15 +483,19 @@ function OrderTrackingPageContent() {
       socket.off("connect", joinOrderRoom);
       socket.off("disconnect", handleDisconnect);
 
-      TRACKING_EVENTS.forEach((eventName) => {
-        socket.off(eventName, handleOrderEvent);
+      ORDER_UPDATED_EVENTS.forEach((eventName) => {
+        socket.off(eventName, handleOrderUpdated);
+      });
+
+      ORDER_STATUS_EVENTS.forEach((eventName) => {
+        socket.off(eventName, handleOrderStatusUpdated);
       });
 
       socket.off('chat:message', handleChatMessage);
 
       window.clearInterval(pollInterval);
     };
-  }, [authLoading, user?.id, user?._id, user?.role, orderId, fetchOrder]);
+  }, [authLoading, user?.id, user?._id, user?.role, orderId, fetchOrder, syncRealtimeOrderState]);
 
   // open chat modal and load messages
   const handleOpenChat = async () => {
