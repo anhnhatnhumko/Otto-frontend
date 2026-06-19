@@ -878,9 +878,9 @@ const CustomerDashboard = () => {
               <TabsTrigger value="orders" className="rounded-lg">
                 Lịch sử đơn hàng
               </TabsTrigger>
-              <TabsTrigger value="promotions" className="rounded-lg">
+              {/* <TabsTrigger value="promotions" className="rounded-lg">
                 Ưu đãi ({promotions.length})
-              </TabsTrigger>
+              </TabsTrigger> */}
               <TabsTrigger value="profile" className="rounded-lg">
                 Thông tin cá nhân
               </TabsTrigger>
