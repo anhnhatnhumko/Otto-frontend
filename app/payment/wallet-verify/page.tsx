@@ -1,18 +1,22 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useRef } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import {
-  Wallet,
-  Shield,
+  isExpiredOtpMessage,
+  isInvalidOtpMessage,
+  normalizeOtpErrorMessage,
+} from "@/lib/otp-feedback";
+import {
   ArrowLeft,
-  Loader2,
   CheckCircle2,
+  Loader2,
   RefreshCw,
+  Shield,
+  Wallet,
 } from "lucide-react";
 
 const WALLET_BALANCE = 950000;
@@ -23,87 +27,125 @@ type WalletVerifyOrder = {
   };
 };
 
-const WalletVerifyContent = () => {
+const EMPTY_OTP = ["", "", "", "", "", ""];
+
+function WalletVerifyContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
+  const orderId = searchParams.get("orderId") || "";
   const initialTransactionId = searchParams.get("transactionId") || "";
-  const orderId = searchParams.get("orderId");
   const totalAmount = Number(searchParams.get("amount") || 0);
+
   const [transactionId, setTransactionId] = useState(initialTransactionId);
   const [order, setOrder] = useState<WalletVerifyOrder | null>(null);
-
-  const [otp, setOtp] = useState<string[]>(["", "", "", "", "", ""]);
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
+  const [otp, setOtp] = useState<string[]>(EMPTY_OTP);
   const [error, setError] = useState("");
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [countdown, setCountdown] = useState(60);
   const [canResend, setCanResend] = useState(false);
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-  useEffect(() => {
-    if (!orderId) return;
-
-    const fetchOrder = async () => {
-      const res = await fetch(`/api/orders/${orderId}`, {
-        credentials: "include",
-      });
-
-      const data = await res.json();
-      setOrder(data);
-    };
-
-    fetchOrder();
-  }, [orderId]);
 
   useEffect(() => {
     inputRefs.current[0]?.focus();
   }, []);
 
   useEffect(() => {
+    if (!orderId) return;
+
+    const fetchOrder = async () => {
+      try {
+        const res = await fetch(`/api/orders/${orderId}`, {
+          credentials: "include",
+        });
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+        setOrder(data);
+      } catch {
+        // ignore order preview failures here
+      }
+    };
+
+    void fetchOrder();
+  }, [orderId]);
+
+  useEffect(() => {
     if (countdown > 0 && !canResend) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-      return () => clearTimeout(timer);
-    } else if (countdown === 0) {
+      const timer = window.setTimeout(() => {
+        setCountdown((value) => value - 1);
+      }, 1000);
+
+      return () => window.clearTimeout(timer);
+    }
+
+    if (countdown === 0) {
       setCanResend(true);
     }
-  }, [countdown, canResend]);
+  }, [canResend, countdown]);
 
   const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat("vi-VN").format(amount) + "đ";
+    `${new Intl.NumberFormat("vi-VN").format(amount)}đ`;
+
+  const applyOtpErrorState = (message: string) => {
+    setError(message);
+
+    if (isInvalidOtpMessage(message) || isExpiredOtpMessage(message)) {
+      setOtp([...EMPTY_OTP]);
+      inputRefs.current[0]?.focus();
+    }
+
+    if (isExpiredOtpMessage(message)) {
+      setCountdown(0);
+      setCanResend(true);
+    }
+  };
 
   const handleChange = (index: number, value: string) => {
     if (!/^\d*$/.test(value)) return;
-    const newOtp = [...otp];
-    newOtp[index] = value.slice(-1);
-    setOtp(newOtp);
+
+    const nextOtp = [...otp];
+    nextOtp[index] = value.slice(-1);
+    setOtp(nextOtp);
     setError("");
-    if (value && index < 5) {
+
+    if (value && index < nextOtp.length - 1) {
       inputRefs.current[index + 1]?.focus();
     }
   };
 
-  const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
-    if (e.key === "Backspace" && !otp[index] && index > 0) {
+  const handleKeyDown = (index: number, event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Backspace" && !otp[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
   };
 
-  const handlePaste = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-    const pastedData = e.clipboardData
+  const handlePaste = (event: React.ClipboardEvent<HTMLInputElement>) => {
+    event.preventDefault();
+
+    const pasted = event.clipboardData
       .getData("text")
       .replace(/\D/g, "")
       .slice(0, 6);
-    const newOtp = [...otp];
-    for (let i = 0; i < pastedData.length; i++) {
-      newOtp[i] = pastedData[i];
+
+    const nextOtp = [...EMPTY_OTP];
+    for (let index = 0; index < pasted.length; index += 1) {
+      nextOtp[index] = pasted[index];
     }
-    setOtp(newOtp);
-    const nextIndex = Math.min(pastedData.length, 5);
-    inputRefs.current[nextIndex]?.focus();
+
+    setOtp(nextOtp);
+    setError("");
+    inputRefs.current[Math.min(pasted.length, 5)]?.focus();
   };
 
   const handleResend = async () => {
+    if (!orderId) {
+      applyOtpErrorState("Thiếu thông tin đơn hàng để gửi lại OTP");
+      return;
+    }
+
     try {
       const res = await fetch(`/api/orders/wallet/create-payment`, {
         method: "POST",
@@ -115,21 +157,24 @@ const WalletVerifyContent = () => {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data?.message || "KhÃ´ng thá»ƒ gá»­i láº¡i OTP");
+        throw new Error(data?.message || "Không thể gửi lại OTP");
       }
 
       const nextTransactionId = String(data?.transactionId ?? "");
       if (!nextTransactionId) {
-        throw new Error("Thiáº¿u mÃ£ giao dá»‹ch OTP má»›i");
+        throw new Error("Thiếu mã giao dịch OTP mới");
       }
 
       setTransactionId(nextTransactionId);
+      setOtp([...EMPTY_OTP]);
+      setError("");
       setCountdown(60);
       setCanResend(false);
-      setOtp(["", "", "", "", "", ""]);
-      setError("");
-    } catch {
-      setError("Không thể gửi lại OTP");
+      inputRefs.current[0]?.focus();
+    } catch (err: unknown) {
+      applyOtpErrorState(
+        normalizeOtpErrorMessage(err, "Không thể gửi lại OTP"),
+      );
     }
   };
 
@@ -165,10 +210,9 @@ const WalletVerifyContent = () => {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.message || "OTP không hợp lệ");
+        throw new Error(data?.message || "OTP không hợp lệ");
       }
 
-      // ✅ SUCCESS REAL
       setIsSuccess(true);
       const successParams = new URLSearchParams({
         orderId,
@@ -177,11 +221,18 @@ const WalletVerifyContent = () => {
       });
       router.replace(`/payment/success?${successParams.toString()}`);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Xác minh thất bại");
+      applyOtpErrorState(
+        normalizeOtpErrorMessage(err, "Xác minh thất bại"),
+      );
     } finally {
       setIsVerifying(false);
     }
   };
+
+  const walletAfterPayment = useMemo(
+    () => Math.max(WALLET_BALANCE - totalAmount, 0),
+    [totalAmount],
+  );
 
   if (isSuccess) {
     return (
@@ -189,46 +240,41 @@ const WalletVerifyContent = () => {
         <Header />
         <main className="py-12">
           <div className="container max-w-lg">
-            <div className="bg-card rounded-2xl shadow-card p-8 text-center animate-fade-up">
-              <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-6">
-                <CheckCircle2 className="w-10 h-10 text-green-600" />
+            <div className="rounded-2xl bg-card p-8 text-center shadow-card">
+              <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-green-100">
+                <CheckCircle2 className="h-10 w-10 text-green-600" />
               </div>
-              <h1 className="text-2xl font-bold text-foreground mb-2">
-                Thanh toán thành công!
+              <h1 className="mb-2 text-2xl font-bold text-foreground">
+                Thanh toán thành công
               </h1>
-              <p className="text-muted-foreground mb-6">
-                Đã trừ {formatCurrency(totalAmount)} từ Ví Otto của bạn
+              <p className="mb-6 text-muted-foreground">
+                Đã trừ {formatCurrency(totalAmount)} từ Ví Otto của bạn.
               </p>
 
-              <div className="bg-muted rounded-xl p-4 mb-6 text-left space-y-2 text-sm">
-                <div className="flex justify-between">
+              <div className="mb-6 space-y-2 rounded-xl bg-muted p-4 text-left text-sm">
+                <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">Dịch vụ</span>
                   <span className="font-medium text-foreground">
                     {order?.serviceSnapshot?.name || "Dịch vụ"}
                   </span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">Số tiền</span>
                   <span className="font-medium text-primary">
                     {formatCurrency(totalAmount)}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Phương thức</span>
-                  <span className="font-medium text-foreground">Ví Otto</span>
-                </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">Số dư còn lại</span>
                   <span className="font-medium text-foreground">
-                    {formatCurrency(WALLET_BALANCE - totalAmount)}
+                    {formatCurrency(walletAfterPayment)}
                   </span>
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row">
                 <Button
                   variant="hero-outline"
-                  size="lg"
                   className="flex-1"
                   onClick={() => router.push(`/orders/${orderId}`)}
                 >
@@ -236,7 +282,6 @@ const WalletVerifyContent = () => {
                 </Button>
                 <Button
                   variant="hero"
-                  size="lg"
                   className="flex-1"
                   onClick={() => router.push("/")}
                 >
@@ -258,29 +303,27 @@ const WalletVerifyContent = () => {
         <div className="container max-w-lg">
           <button
             onClick={() => router.back()}
-            className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6"
+            className="mb-6 flex items-center gap-2 text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft size={18} />
             Quay lại
           </button>
 
-          <div className="bg-card rounded-2xl shadow-card p-6 md:p-8">
-            {/* Header */}
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                <Wallet className="w-8 h-8 text-primary" />
+          <div className="rounded-2xl bg-card p-6 shadow-card md:p-8">
+            <div className="mb-8 text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                <Wallet className="h-8 w-8 text-primary" />
               </div>
-              <h1 className="text-xl font-bold text-foreground mb-1">
+              <h1 className="mb-1 text-xl font-bold text-foreground">
                 Xác minh thanh toán
               </h1>
               <p className="text-sm text-muted-foreground">
-                Nhập mã OTP đã gửi đến email của bạn
+                Nhập mã OTP đã gửi đến email của bạn để hoàn tất thanh toán.
               </p>
             </div>
 
-            {/* Transaction Info */}
-            <div className="bg-muted rounded-xl p-4 mb-6">
-              <div className="flex justify-between items-center mb-2">
+            <div className="mb-6 rounded-xl bg-muted p-4">
+              <div className="mb-2 flex items-center justify-between gap-4">
                 <span className="text-sm text-muted-foreground">
                   Số tiền thanh toán
                 </span>
@@ -288,7 +331,7 @@ const WalletVerifyContent = () => {
                   {formatCurrency(totalAmount)}
                 </span>
               </div>
-              <div className="flex justify-between items-center">
+              <div className="flex items-center justify-between gap-4">
                 <span className="text-sm text-muted-foreground">
                   Số dư ví hiện tại
                 </span>
@@ -298,23 +341,22 @@ const WalletVerifyContent = () => {
               </div>
             </div>
 
-            {/* OTP Input */}
             <div className="mb-6">
-              <div className="flex justify-center gap-2 md:gap-3 mb-3">
+              <div className="mb-3 flex justify-center gap-2 md:gap-3">
                 {otp.map((digit, index) => (
                   <input
                     key={index}
-                    ref={(el) => {
-                      inputRefs.current[index] = el;
+                    ref={(element) => {
+                      inputRefs.current[index] = element;
                     }}
                     type="text"
                     inputMode="numeric"
                     maxLength={1}
                     value={digit}
-                    onChange={(e) => handleChange(index, e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(index, e)}
+                    onChange={(event) => handleChange(index, event.target.value)}
+                    onKeyDown={(event) => handleKeyDown(index, event)}
                     onPaste={index === 0 ? handlePaste : undefined}
-                    className={`w-11 h-13 md:w-12 md:h-14 text-center text-xl font-bold rounded-xl border-2 bg-background text-foreground outline-none transition-all ${
+                    className={`h-13 w-11 rounded-xl border-2 bg-background text-center text-xl font-bold text-foreground outline-none transition-all md:h-14 md:w-12 ${
                       error
                         ? "border-destructive"
                         : digit
@@ -324,17 +366,19 @@ const WalletVerifyContent = () => {
                   />
                 ))}
               </div>
-              {error && (
-                <p className="text-sm text-destructive text-center">{error}</p>
-              )}
+
+              {error ? (
+                <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-center text-sm text-destructive">
+                  {error}
+                </div>
+              ) : null}
             </div>
 
-            {/* Resend */}
-            <div className="text-center mb-6">
+            <div className="mb-6 text-center">
               {canResend ? (
                 <button
                   onClick={handleResend}
-                  className="inline-flex items-center gap-2 text-sm text-primary hover:underline font-medium"
+                  className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
                 >
                   <RefreshCw size={14} />
                   Gửi lại mã OTP
@@ -349,7 +393,6 @@ const WalletVerifyContent = () => {
               )}
             </div>
 
-            {/* Verify Button */}
             <Button
               variant="hero"
               size="lg"
@@ -367,11 +410,10 @@ const WalletVerifyContent = () => {
               )}
             </Button>
 
-            {/* Security */}
-            <div className="flex items-center justify-center gap-2 mt-4">
+            <div className="mt-4 flex items-center justify-center gap-2">
               <Shield size={14} className="text-green-600" />
               <p className="text-xs text-muted-foreground">
-                Giao dịch được bảo mật bởi mã hóa SSL 256-bit
+                Mã OTP có hiệu lực trong 5 phút để bảo vệ giao dịch của bạn.
               </p>
             </div>
           </div>
@@ -380,11 +422,17 @@ const WalletVerifyContent = () => {
       <Footer />
     </div>
   );
-};
+}
 
-export default function WalletVerify() {
+export default function WalletVerifyPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Đang tải...</div>}>
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          Đang tải...
+        </div>
+      }
+    >
       <WalletVerifyContent />
     </Suspense>
   );
